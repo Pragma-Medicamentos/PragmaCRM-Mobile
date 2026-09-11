@@ -1,28 +1,30 @@
-import { useAuth } from '@clerk/expo';
+import { useAuth, useUser } from '@clerk/expo';
+import { UserButton } from '@clerk/expo/native';
 import { Redirect } from 'expo-router';
 import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { AuthControls } from '@/components/auth-controls';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 
-export default function SignInScreen() {
+export default function DashboardScreen() {
   const { isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
 
   if (!isLoaded) return null;
-  if (isSignedIn) return <Redirect href="/dashboard" />;
+  if (!isSignedIn) return <Redirect href="/" />;
 
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <AnimatedIcon />
-        <ThemedText type="title" style={styles.title}>
-          PragmaCRM
+        <ThemedText type="subtitle" style={styles.title}>
+          Ya iniciaste sesión
         </ThemedText>
-        <AuthControls />
+        <ThemedText themeColor="textSecondary" style={styles.subtitle}>
+          {user?.primaryEmailAddress?.emailAddress ?? 'Bienvenido a PragmaCRM'}
+        </ThemedText>
+        <UserButton />
       </SafeAreaView>
     </ThemedView>
   );
@@ -39,10 +41,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+    gap: Spacing.three,
     maxWidth: MaxContentWidth,
   },
   title: {
+    textAlign: 'center',
+  },
+  subtitle: {
     textAlign: 'center',
   },
 });
