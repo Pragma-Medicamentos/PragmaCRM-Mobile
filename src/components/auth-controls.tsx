@@ -41,7 +41,7 @@ export function AuthControls() {
         visible={isAuthOpen}
         presentationStyle="pageSheet"
         onRequestClose={() => setIsAuthOpen(false)}>
-        <AuthView onDismiss={() => setIsAuthOpen(false)} />
+        <AuthView mode="signIn" onDismiss={() => setIsAuthOpen(false)} />
       </Modal>
     </View>
   );

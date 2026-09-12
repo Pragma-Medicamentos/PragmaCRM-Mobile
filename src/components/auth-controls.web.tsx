@@ -1,5 +1,5 @@
 import { Show } from '@clerk/expo';
-import { SignInButton, SignUpButton, UserButton } from '@clerk/expo/web';
+import { SignInButton, UserButton } from '@clerk/expo/web';
 import { StyleSheet, View } from 'react-native';
 
 import { Spacing } from '@/constants/theme';
@@ -13,7 +13,6 @@ export function AuthControls() {
     <View style={styles.container}>
       <Show when="signed-out">
         <SignInButton mode="modal" />
-        <SignUpButton mode="modal" />
       </Show>
       <Show when="signed-in">
         <UserButton />
