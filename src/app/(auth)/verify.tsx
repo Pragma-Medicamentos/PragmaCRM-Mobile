@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BrandLogo } from '@/components/brand-logo';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
@@ -94,6 +95,7 @@ function VerifyOtpForm({ email }: { email: string }) {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag">
             <ThemedView style={styles.header}>
+              <BrandLogo width={160} />
               <ThemedText type="subtitle" style={styles.centered}>
                 Revisa tu correo
               </ThemedText>

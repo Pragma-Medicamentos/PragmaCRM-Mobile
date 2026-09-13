@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BrandLogo } from '@/components/brand-logo';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,7 @@ export default function RequestOtpScreen() {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag">
             <ThemedView style={styles.header}>
+              <BrandLogo width={160} />
               <ThemedText type="subtitle" style={styles.centered}>
                 Ingresa con un código
               </ThemedText>

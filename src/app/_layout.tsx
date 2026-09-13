@@ -1,15 +1,32 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { Colors } from '@/constants/theme';
 import { initAuth, useAuthStore } from '@/stores/auth-store';
 
 SplashScreen.preventAutoHideAsync();
 
+/**
+ * react-navigation trae su propia paleta y es la que pinta los fondos y las
+ * transiciones entre pantallas, no los componentes de la aplicacion. Sin este
+ * puente, al empujar una pantalla se ve el azul de la plantilla por debajo.
+ */
+const NavigationTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: Colors.light.tint,
+    background: Colors.light.background,
+    card: Colors.light.background,
+    text: Colors.light.text,
+    border: Colors.light.backgroundSelected,
+    notification: Colors.light.danger,
+  },
+};
+
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   const status = useAuthStore((state) => state.status);
 
   useEffect(() => {
@@ -17,7 +34,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={NavigationTheme}>
       {/*
         La sesion se rehidrata desde el almacenamiento cifrado de forma
         asincrona. Renderizar el navegador antes de saber el resultado muestra

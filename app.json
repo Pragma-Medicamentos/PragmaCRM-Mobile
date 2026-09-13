@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pragmacrmmobile",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.kevrodrguez.PragmaCRMMobile"
@@ -30,9 +30,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/images/brand-capsule.png",
+          "imageWidth": 90
         }
       ],
       "expo-secure-store"

@@ -8,6 +8,7 @@ import {
 } from 'expo-router/ui';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { BrandLogo } from './brand-logo';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
@@ -34,7 +35,7 @@ export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps
       <ThemedView
         type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
         style={styles.tabButtonView}>
-        <ThemedText type="small" themeColor={isFocused ? 'text' : 'textSecondary'}>
+        <ThemedText type="small" themeColor={isFocused ? 'tint' : 'textSecondary'}>
           {children}
         </ThemedText>
       </ThemedView>
@@ -46,9 +47,9 @@ export function CustomTabList(props: TabListProps) {
   return (
     <View {...props} style={styles.tabListContainer}>
       <ThemedView type="backgroundElement" style={styles.innerContainer}>
-        <ThemedText type="smallBold" style={styles.brandText}>
-          PragmaCRM
-        </ThemedText>
+        <View style={styles.brand}>
+          <BrandLogo width={120} />
+        </View>
 
         {props.children}
       </ThemedView>
@@ -75,7 +76,7 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     maxWidth: MaxContentWidth,
   },
-  brandText: {
+  brand: {
     marginRight: 'auto',
   },
   pressed: {
