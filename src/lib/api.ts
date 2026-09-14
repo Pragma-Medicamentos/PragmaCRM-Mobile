@@ -50,6 +50,24 @@ if (!baseUrl) {
 }
 
 /**
+ * Compuerta de transporte de PragmaCRM-Api: su middleware `requireApiKey` exige
+ * esta cabecera en todo salvo `/api/health`, antes de cualquier grupo de rutas.
+ *
+ * No es un secreto y no autentica a nadie: las variables EXPO_PUBLIC_ se
+ * inlinean en el bundle, asi que cualquiera puede extraerla del APK o del IPA.
+ * Quien autentica es el JWT de Supabase que viaja en Authorization.
+ */
+const apiKey = process.env.EXPO_PUBLIC_API_KEY ?? '';
+
+if (!apiKey) {
+  throw new Error(
+    'Falta EXPO_PUBLIC_API_KEY. Copia el valor de API_KEY del .env de PragmaCRM-Api\n' +
+      'a tu .env.local y reinicia el servidor de desarrollo: sin ella la API responde\n' +
+      '401 "Invalid or missing API key" en todas las rutas.',
+  );
+}
+
+/**
  * The API wraps every response in `{ success, message, data?, errors? }`.
  * Callers get `data` directly; anything non-2xx becomes an ApiError carrying
  * the status, which is what separates "session expired" (401) from
@@ -62,6 +80,7 @@ export async function apiFetch<T>(path: string, token: string | null, init?: Req
       ...init,
       headers: {
         'Content-Type': 'application/json',
+        'x-api-key': apiKey,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...init?.headers,
       },

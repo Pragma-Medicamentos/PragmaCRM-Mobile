@@ -78,3 +78,21 @@ export const Spacing = {
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;
+
+/**
+ * Convierte un color hexadecimal de la paleta en su equivalente rgba con la
+ * opacidad indicada.
+ *
+ * Los degradados no pueden desvanecerse hacia `transparent`: en Android eso
+ * interpola hacia rgba(0,0,0,0) y ensucia el tramo final con gris. La parada
+ * final tiene que ser el mismo color con alfa 0, y para eso hace falta
+ * descomponer el hex.
+ */
+export function withAlpha(hex: string, alpha: number): string {
+  const value = hex.replace('#', '');
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}

@@ -27,10 +27,15 @@ export function toSpanishAuthMessage(error: AuthError | null): string | undefine
 
   if (error.code && MESSAGES[error.code]) return MESSAGES[error.code];
 
-  // Lo que lanza supabase-js cuando no hay red: distinguirlo evita acusar al
-  // usuario de escribir mal la contraseña cuando el problema es la conexión.
+  // supabase-js mete en `AuthRetryableFetchError` dos cosas muy distintas: los
+  // fallos de red reales (status 0) y cualquier respuesta 5xx del servidor. Hay
+  // que separarlas, porque culpar a la conexión del usuario cuando el problema
+  // está del otro lado manda a revisar el wifi durante horas. El caso típico es
+  // un 500 "Error sending magic link email" cuando el SMTP no logra entregar.
   if (error.name === 'AuthRetryableFetchError') {
-    return 'No se pudo conectar con el servidor. Verifica tu conexión.';
+    return error.status === 0
+      ? 'No se pudo conectar con el servidor. Verifica tu conexión.'
+      : 'El servidor de autenticación falló. No es tu conexión: vuelve a intentarlo o avisa al administrador.';
   }
 
   return 'No se pudo completar la operación. Inténtalo de nuevo.';

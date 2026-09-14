@@ -1,4 +1,5 @@
 import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
@@ -35,6 +36,14 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={NavigationTheme}>
+      {/*
+        La aplicacion es siempre clara, asi que la barra de estado necesita
+        contenido oscuro. Android usa iconos blancos por defecto y sobre el
+        fondo blanco -- o sobre el verde claro del velo -- la hora y la bateria
+        quedan practicamente invisibles.
+      */}
+      <StatusBar style="dark" />
+
       {/*
         La sesion se rehidrata desde el almacenamiento cifrado de forma
         asincrona. Renderizar el navegador antes de saber el resultado muestra

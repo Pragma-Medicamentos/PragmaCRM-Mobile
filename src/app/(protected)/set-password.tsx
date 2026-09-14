@@ -1,9 +1,17 @@
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TopGradient } from '@/components/top-gradient';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/text-field';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
@@ -58,6 +66,8 @@ export default function SetPasswordScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <TopGradient />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}>
@@ -66,14 +76,14 @@ export default function SetPasswordScreen() {
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag">
-            <ThemedView style={styles.header}>
+            <View style={styles.header}>
               <ThemedText type="subtitle" style={styles.centered}>
                 Crea tu contraseña
               </ThemedText>
               <ThemedText themeColor="textSecondary" style={styles.centered}>
                 Elige la contraseña con la que entrarás de ahora en adelante.
               </ThemedText>
-            </ThemedView>
+            </View>
 
             <TextField
               label="Nueva contraseña"

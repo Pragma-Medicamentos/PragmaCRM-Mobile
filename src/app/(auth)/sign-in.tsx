@@ -7,12 +7,14 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandLogo } from '@/components/brand-logo';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TopGradient } from '@/components/top-gradient';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/text-field';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
@@ -48,6 +50,8 @@ export default function SignInScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <TopGradient />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}>
@@ -56,12 +60,12 @@ export default function SignInScreen() {
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag">
-            <ThemedView style={styles.header}>
+            <View style={styles.header}>
               <BrandLogo />
               <ThemedText themeColor="textSecondary" style={styles.centered}>
                 Ingresa con la cuenta que te asignó tu administrador.
               </ThemedText>
-            </ThemedView>
+            </View>
 
             <TextField
               label="Correo"

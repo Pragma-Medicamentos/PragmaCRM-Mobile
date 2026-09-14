@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandLogo } from '@/components/brand-logo';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TopGradient } from '@/components/top-gradient';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/text-field';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
@@ -45,6 +46,8 @@ export default function RequestOtpScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <TopGradient />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}>
@@ -53,15 +56,20 @@ export default function RequestOtpScreen() {
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag">
-            <ThemedView style={styles.header}>
+            <View style={styles.header}>
               <BrandLogo width={160} />
               <ThemedText type="subtitle" style={styles.centered}>
                 Ingresa con un código
               </ThemedText>
+              {/*
+                Sin decir cuantos digitos: la longitud la fija `otp_length` en
+                el proyecto de Supabase, no la app, y hoy no coincide con los 6
+                que asumia este texto.
+              */}
               <ThemedText themeColor="textSecondary" style={styles.centered}>
-                Te enviaremos un código de 6 dígitos al correo que registró tu administrador.
+                Te enviaremos un código al correo que registró tu administrador.
               </ThemedText>
-            </ThemedView>
+            </View>
 
             <TextField
               label="Correo"

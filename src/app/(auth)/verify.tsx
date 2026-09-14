@@ -1,17 +1,25 @@
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandLogo } from '@/components/brand-logo';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TopGradient } from '@/components/top-gradient';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/text-field';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuthStore } from '@/stores/auth-store';
 
-const CODE_LENGTH = 6;
+/**
+ * La longitud del codigo la fija el proyecto de Supabase (`otp_length`), no la
+ * app: este proyecto emite 8 digitos aunque el `config.toml` local diga 6, y
+ * cambiarlo en el dashboard no deberia obligar a publicar una version nueva.
+ * Se acepta un rango y se deja que Supabase sea quien valide el codigo.
+ */
+const MIN_CODE_LENGTH = 6;
+const MAX_CODE_LENGTH = 10;
 
 /** Supabase solo permite pedir un codigo cada 60 segundos. */
 const RESEND_SECONDS = 60;
@@ -49,7 +57,7 @@ function VerifyOtpForm({ email }: { email: string }) {
     return () => clearTimeout(timer);
   }, [secondsLeft]);
 
-  const canSubmit = code.trim().length === CODE_LENGTH && !submitting;
+  const canSubmit = code.trim().length >= MIN_CODE_LENGTH && !submitting;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -86,6 +94,8 @@ function VerifyOtpForm({ email }: { email: string }) {
 
   return (
     <ThemedView style={styles.container}>
+      <TopGradient />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}>
@@ -94,25 +104,24 @@ function VerifyOtpForm({ email }: { email: string }) {
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag">
-            <ThemedView style={styles.header}>
+            <View style={styles.header}>
               <BrandLogo width={160} />
               <ThemedText type="subtitle" style={styles.centered}>
                 Revisa tu correo
               </ThemedText>
               <ThemedText themeColor="textSecondary" style={styles.centered}>
-                Si {email} está registrado, te llegó un código de {CODE_LENGTH} dígitos. Expira en
-                una hora.
+                Si {email} está registrado, te llegó un código numérico. Escríbelo aquí.
               </ThemedText>
-            </ThemedView>
+            </View>
 
             <TextField
               label="Código"
               value={code}
               onChangeText={setCode}
-              placeholder="000000"
+              placeholder="Código"
               keyboardType="number-pad"
               inputMode="numeric"
-              maxLength={CODE_LENGTH}
+              maxLength={MAX_CODE_LENGTH}
               autoComplete="one-time-code"
               textContentType="oneTimeCode"
               returnKeyType="done"
@@ -179,8 +188,8 @@ const styles = StyleSheet.create({
   },
   code: {
     textAlign: 'center',
-    fontSize: 28,
-    lineHeight: 34,
-    letterSpacing: 8,
+    fontSize: 26,
+    lineHeight: 32,
+    letterSpacing: 6,
   },
 });
