@@ -122,16 +122,26 @@ export default function SignInScreen() {
             />
 
             {/*
-              El mismo flujo de codigo sirve para el primer ingreso y para la
-              recuperacion, asi que un solo enlace cubre ambos casos y el
-              administrador deja de reenviar credenciales a mano.
+              Dos caminos distintos y por eso dos enlaces: entrar con codigo te
+              lleva a la app, mientras que recuperar obliga a fijar una
+              contraseña nueva. Un solo enlace no podria expresar cual es cual.
             */}
             <Link href="/otp" asChild>
               <Pressable
                 accessibilityRole="link"
                 style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
                 <ThemedText type="small" themeColor="tint" style={styles.centered}>
-                  ¿Primera vez aquí o no recuerdas tu contraseña?
+                  Entrar con código
+                </ThemedText>
+              </Pressable>
+            </Link>
+
+            <Link href={{ pathname: '/otp', params: { intent: 'reset' } }} asChild>
+              <Pressable
+                accessibilityRole="link"
+                style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.centered}>
+                  Olvidé mi contraseña
                 </ThemedText>
               </Pressable>
             </Link>

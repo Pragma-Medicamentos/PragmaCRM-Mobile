@@ -43,7 +43,7 @@ interface AuthStore {
   /** Devuelve un mensaje en español si falló, o undefined si funcionó. */
   signIn: (email: string, password: string) => Promise<string | undefined>;
   requestOtp: (email: string) => Promise<string | undefined>;
-  verifyOtp: (email: string, token: string) => Promise<string | undefined>;
+  verifyOtp: (email: string, token: string, isReset: boolean) => Promise<string | undefined>;
   completePasswordSetup: (password: string) => Promise<string | undefined>;
   signOut: () => Promise<void>;
   loadProfile: () => Promise<void>;
@@ -77,19 +77,29 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     return toSpanishAuthMessage(error);
   },
 
-  async verifyOtp(email, token) {
+  async verifyOtp(email, token, isReset) {
+    // Se marca ANTES de verificar, no despues: `verifyOtp` dispara el evento
+    // SIGNED_IN por su propio camino asincrono, y si ese evento corriera despues
+    // de un `set` posterior borraria la intencion y la recuperacion se saltaria
+    // en silencio. Marcandola antes, el handler la encuentra ya puesta.
+    //
+    // Solo se exige contraseña cuando el vendedor venia a recuperarla. Marcarlo
+    // en todo ingreso por codigo obligaba a cambiarla a quien ya tenia una y
+    // solo queria entrar. El primer ingreso no necesita esta marca: ahi
+    // `passwordSetAt` viene en null y el guard lo resuelve solo.
+    if (isReset) set({ passwordSetup: 'required' });
+
     const { error } = await supabase.auth.verifyOtp({
       email: email.trim(),
       token: token.trim(),
       type: 'email',
     });
 
-    if (error) return toSpanishAuthMessage(error);
+    if (error) {
+      if (isReset) set({ passwordSetup: 'idle' });
+      return toSpanishAuthMessage(error);
+    }
 
-    // Verificar el codigo abre una sesion real, asi que a partir de aqui manda
-    // el guard raiz. Se marca la intencion antes de que la navegacion ocurra
-    // para que la compuerta de `(protected)` la vea ya puesta.
-    set({ passwordSetup: 'required' });
     return undefined;
   },
 
@@ -156,18 +166,23 @@ export function initAuth(): void {
   supabase.auth.onAuthStateChange((_event, session) => {
     const previous = useAuthStore.getState();
 
-    // El perfil pertenece al usuario que lo pidio. Se conserva cuando solo se
-    // refresco el token del mismo usuario, y se descarta en cualquier otro caso
-    // para no mostrar datos del vendedor anterior. `passwordSetup` sigue
-    // la misma regla: es de la sesion que acaba de verificar un codigo, no del
-    // siguiente que inicie sesion en este dispositivo.
-    const sameUser = session !== null && session.user.id === previous.session?.user.id;
+    // Solo se descarta el estado local cuando deja de pertenecerle a alguien:
+    // al cerrar sesion, o al entrar un vendedor distinto. Un refresh de token
+    // conserva todo, y tambien lo hace el SIGNED_IN que sigue a verificar un
+    // codigo — de otro modo ese evento borraria la intencion de recuperacion
+    // que `verifyOtp` acaba de marcar.
+    const switchedUser =
+      session !== null &&
+      previous.session !== null &&
+      session.user.id !== previous.session.user.id;
+
+    const discard = session === null || switchedUser;
 
     useAuthStore.setState({
       session,
       status: session ? 'signedIn' : 'signedOut',
-      profile: sameUser ? previous.profile : { status: 'idle' },
-      passwordSetup: sameUser ? previous.passwordSetup : 'idle',
+      profile: discard ? { status: 'idle' } : previous.profile,
+      passwordSetup: discard ? 'idle' : previous.passwordSetup,
     });
   });
 }

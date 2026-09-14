@@ -1,5 +1,5 @@
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,18 +8,20 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TopGradient } from '@/components/top-gradient';
 import { Button } from '@/components/ui/button';
-import { TextField } from '@/components/ui/text-field';
+import { OtpInput } from '@/components/ui/otp-input';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuthStore } from '@/stores/auth-store';
 
 /**
- * La longitud del codigo la fija el proyecto de Supabase (`otp_length`), no la
- * app: este proyecto emite 8 digitos aunque el `config.toml` local diga 6, y
- * cambiarlo en el dashboard no deberia obligar a publicar una version nueva.
- * Se acepta un rango y se deja que Supabase sea quien valide el codigo.
+ * Cuantas casillas se dibujan. Tiene que coincidir con `otp_length` del
+ * proyecto de Supabase: hoy emite 8 digitos, aunque el `config.toml` local diga
+ * 6 — ese archivo solo configura el stack local, no el proyecto hosted.
+ *
+ * Se puede sobrescribir por entorno para que cambiarlo en el dashboard no
+ * obligue a publicar una version nueva de la app. Ya nos mordio una vez: la
+ * pantalla exigia 6 digitos mientras llegaban codigos de 8.
  */
-const MIN_CODE_LENGTH = 6;
-const MAX_CODE_LENGTH = 10;
+const CODE_LENGTH = Number(process.env.EXPO_PUBLIC_OTP_LENGTH) || 8;
 
 /** Supabase solo permite pedir un codigo cada 60 segundos. */
 const RESEND_SECONDS = 60;
@@ -30,16 +32,16 @@ const RESEND_SECONDS = 60;
  * `(protected)` lleva a establecer la contraseña.
  */
 export default function VerifyOtpScreen() {
-  const { email } = useLocalSearchParams<{ email?: string }>();
+  const { email, intent } = useLocalSearchParams<{ email?: string; intent?: string }>();
 
   // Llegar aqui sin correo solo pasa por un enlace directo; no hay nada que
   // verificar sin el. El formulario vive aparte para recibirlo ya garantizado.
   if (!email) return <Redirect href="/otp" />;
 
-  return <VerifyOtpForm email={email} />;
+  return <VerifyOtpForm email={email} isReset={intent === 'reset'} />;
 }
 
-function VerifyOtpForm({ email }: { email: string }) {
+function VerifyOtpForm({ email, isReset }: { email: string; isReset: boolean }) {
   const verifyOtp = useAuthStore((state) => state.verifyOtp);
   const requestOtp = useAuthStore((state) => state.requestOtp);
 
@@ -57,18 +59,30 @@ function VerifyOtpForm({ email }: { email: string }) {
     return () => clearTimeout(timer);
   }, [secondsLeft]);
 
-  const canSubmit = code.trim().length >= MIN_CODE_LENGTH && !submitting;
+  // El autoenvio llega desde un callback de render, donde `submitting` todavia
+  // vale lo de antes. Un ref si refleja el valor actual y evita que dos
+  // llamadas seguidas disparen dos verificaciones del mismo codigo.
+  const submittingRef = useRef(false);
 
-  async function handleSubmit() {
-    if (!canSubmit) return;
+  const canSubmit = code.length === CODE_LENGTH && !submitting;
 
+  /**
+   * `candidate` permite recibir el codigo recien escrito en vez de leerlo del
+   * estado: cuando se llama desde `onComplete`, `setCode` acaba de agendarse y
+   * `code` sigue teniendo un digito menos.
+   */
+  async function handleSubmit(candidate: string = code) {
+    if (submittingRef.current || candidate.length !== CODE_LENGTH) return;
+
+    submittingRef.current = true;
     setSubmitting(true);
     setError(undefined);
 
-    const message = await verifyOtp(email, code);
+    const message = await verifyOtp(email, candidate, isReset);
 
     // Si funciono, esta pantalla se desmonta con el resto de `(auth)`.
     if (message) {
+      submittingRef.current = false;
       setError(message);
       setSubmitting(false);
     }
@@ -88,6 +102,7 @@ function VerifyOtpForm({ email }: { email: string }) {
       return;
     }
 
+    submittingRef.current = false;
     setCode('');
     setSecondsLeft(RESEND_SECONDS);
   }
@@ -114,20 +129,12 @@ function VerifyOtpForm({ email }: { email: string }) {
               </ThemedText>
             </View>
 
-            <TextField
-              label="Código"
+            <OtpInput
               value={code}
               onChangeText={setCode}
-              placeholder="Código"
-              keyboardType="number-pad"
-              inputMode="numeric"
-              maxLength={MAX_CODE_LENGTH}
-              autoComplete="one-time-code"
-              textContentType="oneTimeCode"
-              returnKeyType="done"
+              length={CODE_LENGTH}
               editable={!submitting}
-              style={styles.code}
-              onSubmitEditing={() => void handleSubmit()}
+              onComplete={(value) => void handleSubmit(value)}
             />
 
             {error ? (
@@ -185,11 +192,5 @@ const styles = StyleSheet.create({
   },
   centered: {
     textAlign: 'center',
-  },
-  code: {
-    textAlign: 'center',
-    fontSize: 26,
-    lineHeight: 32,
-    letterSpacing: 6,
   },
 });

@@ -1,6 +1,13 @@
-import { router } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandLogo } from '@/components/brand-logo';
@@ -13,10 +20,16 @@ import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuthStore } from '@/stores/auth-store';
 
 /**
- * Primer paso del ingreso por codigo, que cubre tanto el primer acceso (la
- * cuenta se creo sin contraseña) como la recuperacion de una olvidada.
+ * Via principal de ingreso, y ancla del grupo `(auth)`.
+ *
+ * `intent=reset` distingue "olvide mi contraseña" de un ingreso normal. Sin ese
+ * dato el codigo no puede saber a que viniste, y forzar contraseña en los dos
+ * casos obliga a cambiarla a quien solo queria entrar.
  */
 export default function RequestOtpScreen() {
+  const { intent } = useLocalSearchParams<{ intent?: string }>();
+  const isReset = intent === 'reset';
+
   const requestOtp = useAuthStore((state) => state.requestOtp);
 
   const [email, setEmail] = useState('');
@@ -41,7 +54,10 @@ export default function RequestOtpScreen() {
 
     // Supabase no distingue "ese correo no existe" de un envio exitoso, a
     // proposito, para no revelar que cuentas existen. Se avanza siempre.
-    router.push({ pathname: '/verify', params: { email: email.trim() } });
+    router.push({
+      pathname: '/verify',
+      params: { email: email.trim(), ...(isReset ? { intent: 'reset' } : {}) },
+    });
   }
 
   return (
@@ -59,7 +75,7 @@ export default function RequestOtpScreen() {
             <View style={styles.header}>
               <BrandLogo width={160} />
               <ThemedText type="subtitle" style={styles.centered}>
-                Ingresa con un código
+                {isReset ? 'Recupera tu acceso' : 'Ingresa con un código'}
               </ThemedText>
               {/*
                 Sin decir cuantos digitos: la longitud la fija `otp_length` en
@@ -67,7 +83,9 @@ export default function RequestOtpScreen() {
                 que asumia este texto.
               */}
               <ThemedText themeColor="textSecondary" style={styles.centered}>
-                Te enviaremos un código al correo que registró tu administrador.
+                {isReset
+                  ? 'Te enviaremos un código para que crees una contraseña nueva.'
+                  : 'Te enviaremos un código al correo que registró tu administrador.'}
               </ThemedText>
             </View>
 
@@ -100,7 +118,19 @@ export default function RequestOtpScreen() {
               disabled={!canSubmit}
             />
 
-            <Button title="Volver" variant="secondary" onPress={() => router.back()} />
+            {/*
+              Esta pantalla es el ancla del grupo, asi que no hay historial al
+              que volver: el camino alterno es un enlace, no un boton de atras.
+            */}
+            <Link href="/sign-in" asChild>
+              <Pressable
+                accessibilityRole="link"
+                style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
+                <ThemedText type="small" themeColor="tint" style={styles.centered}>
+                  Ingresar con contraseña
+                </ThemedText>
+              </Pressable>
+            </Link>
           </ScrollView>
         </SafeAreaView>
       </KeyboardAvoidingView>
@@ -129,5 +159,12 @@ const styles = StyleSheet.create({
   },
   centered: {
     textAlign: 'center',
+  },
+  link: {
+    alignSelf: 'center',
+    paddingVertical: Spacing.two,
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });
