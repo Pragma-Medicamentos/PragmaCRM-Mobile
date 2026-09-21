@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { Colors } from '@/constants/theme';
 import { initAuth, useAuthStore } from '@/stores/auth-store';
+import { initRoute } from '@/stores/route-store';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -32,6 +33,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     initAuth();
+    initRoute();
   }, []);
 
   return (
