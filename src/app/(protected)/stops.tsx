@@ -6,6 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
 import { Spacing } from '@/constants/theme';
+import { useDeviceLocation } from '@/hooks/use-device-location';
 import { useTheme } from '@/hooks/use-theme';
 import { useRouteStore } from '@/stores/route-store';
 
@@ -24,6 +25,12 @@ export default function StopsScreen() {
   const theme = useTheme();
   const route = useRouteStore((state) => state.route);
   const loadRoute = useRouteStore((state) => state.loadRoute);
+  // R12: esta hoja abre su propia suscripcion de ubicacion (independiente de
+  // la del mapa en (tabs)/index.tsx -- ver el comentario de
+  // useDeviceLocation) para poder mostrar distancia en cada tarjeta. Con
+  // permiso denegado o sin fix todavia, `location` queda en null y
+  // StopCard ya sabe degradar a `{zona} ›` sin romperse.
+  const { location } = useDeviceLocation();
 
   // `idle` solo pasa por navegacion directa a esta pantalla (deep link, por
   // ejemplo): el boton que empuja aca en (tabs)/index.tsx ya solo aparece con
@@ -82,7 +89,9 @@ export default function StopsScreen() {
               No tenés paradas asignadas hoy.
             </ThemedText>
           ) : (
-            route.route.stops.map((stop) => <StopCard key={stop.id} stop={stop} />)
+            route.route.stops.map((stop) => (
+              <StopCard key={stop.id} stop={stop} currentLocation={location} />
+            ))
           )}
         </ScrollView>
       )}
