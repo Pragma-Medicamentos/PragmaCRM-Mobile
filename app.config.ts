@@ -24,16 +24,28 @@ import { ConfigContext, ExpoConfig } from 'expo/config';
  * este proyecto es Android-first y sin la key no hay trabajo util que hacer
  * de todas formas, asi que una falla ruidosa le gana a un mapa gris sin
  * ningun error. Lo unico que se puede angostar es el caso de EAS: cuando
- * `EAS_BUILD_PLATFORM` esta seteado (solo pasa en los builders de EAS) y no
- * es "android", un build de EAS solo-iOS no tiene por que reventar por una
- * key de Android.
+ * `EAS_BUILD_PLATFORM` es exactamente "ios" (solo pasa en los builders de
+ * EAS), un build de EAS solo-iOS no tiene por que reventar por una key de
+ * Android.
+ *
+ * Ojo: esto es una ALLOWLIST a proposito, no una denylist. La primera
+ * version chequeaba `!== 'android'`, que deja pasar sin throw cualquier
+ * otro valor -- incluido `EAS_BUILD_PLATFORM=all`, que EAS setea en un
+ * build combinado que SI produce un artefacto de Android. Con esa version
+ * un build "all" sin key pasaba con exit 0 y `apiKey` vacio. La asimetria
+ * es el punto central: reventar de mas le cuesta a un developer local un
+ * mensaje de error explicito que le dice exactamente que le falta agregar;
+ * reventar de menos le cuesta un APK publicado con el mapa roto que nadie
+ * detecta hasta que un vendedor lo abre en la calle. Por eso solo se saltea
+ * el throw con el valor exacto "ios"; cualquier otra cosa -- "all",
+ * "android", sin setear, o un valor nuevo que EAS agregue el dia de
+ * mañana -- revienta.
  */
 export default ({ config }: ConfigContext): ExpoConfig => {
   const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
-  const easBuildPlatform = process.env.EAS_BUILD_PLATFORM;
-  const isEasNonAndroidBuild = easBuildPlatform !== undefined && easBuildPlatform !== 'android';
+  const isEasIosOnlyBuild = process.env.EAS_BUILD_PLATFORM === 'ios';
 
-  if (!googleMapsApiKey && !isEasNonAndroidBuild) {
+  if (!googleMapsApiKey && !isEasIosOnlyBuild) {
     throw new Error(
       'Falta GOOGLE_MAPS_API_KEY en el entorno. Agregala a tu .env (sin prefijo ' +
         'EXPO_PUBLIC_: es de build, no de runtime). Sin ella el mapa de Android ' +
