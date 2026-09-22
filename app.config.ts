@@ -28,6 +28,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   return {
     ...config,
+    // `config` llega tipado como Partial<ExpoConfig> aunque en runtime siempre
+    // viene de app.json, que ya define ambos. Sin este aserto TS se queja de
+    // que `name`/`slug` podrian ser `undefined`.
+    name: config.name!,
+    slug: config.slug!,
     android: {
       ...config.android,
       config: { googleMaps: { apiKey: googleMapsApiKey } },
