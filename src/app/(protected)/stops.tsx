@@ -1,8 +1,10 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
 import { StopCard } from '@/components/stop-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Button } from '@/components/ui/button';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useRouteStore } from '@/stores/route-store';
@@ -21,11 +23,23 @@ import { useRouteStore } from '@/stores/route-store';
 export default function StopsScreen() {
   const theme = useTheme();
   const route = useRouteStore((state) => state.route);
+  const loadRoute = useRouteStore((state) => state.loadRoute);
 
-  // Si se llega aca sin una ruta lista (navegacion directa, por ejemplo) se
-  // degrada a lista vacia en vez de romper: el boton que empuja a esta
-  // pantalla ya solo aparece con `route.status === 'ready'`.
-  const stops = route.status === 'ready' ? route.route.stops : [];
+  // `idle` solo pasa por navegacion directa a esta pantalla (deep link, por
+  // ejemplo): el boton que empuja aca en (tabs)/index.tsx ya solo aparece con
+  // `route.status === 'ready'`, y esa misma pantalla ya dispara `loadRoute()`
+  // al montar si la encuentra en `idle`. Se repite el mismo patron aca en vez
+  // de asumir que la otra pantalla ya la pidio, para que esta hoja tambien
+  // funcione sola.
+  useEffect(() => {
+    if (route.status === 'idle') void loadRoute();
+  }, [route.status, loadRoute]);
+
+  // El conteo del encabezado no se puede calcular fuera de `ready`: mostrar
+  // "(0)" mientras todavia esta cargando o mientras fallo es la misma mentira
+  // de fondo vacio que R11 corrige mas abajo, solo que en miniatura.
+  const headerLabel =
+    route.status === 'ready' ? `Paradas de hoy (${route.route.stops.length})` : 'Paradas de hoy';
 
   return (
     <ThemedView style={styles.container}>
@@ -36,18 +50,42 @@ export default function StopsScreen() {
       </View>
 
       <View style={[styles.header, { borderBottomColor: theme.backgroundSelected }]}>
-        <ThemedText type="default">Paradas de hoy ({stops.length})</ThemedText>
+        <ThemedText type="default">{headerLabel}</ThemedText>
       </View>
 
-      <ScrollView contentContainerStyle={styles.list}>
-        {stops.length === 0 ? (
-          <ThemedText themeColor="textSecondary" style={styles.empty}>
-            No tenés paradas asignadas hoy.
+      {route.status === 'idle' || route.status === 'pending' ? (
+        // Mismo componente que `_layout.tsx` usa para su propia carga
+        // (`ActivityIndicator` centrado, sin texto): la primera carga de la
+        // ruta es la misma clase de espera con red que la del perfil.
+        <View style={styles.centered}>
+          <ActivityIndicator />
+        </View>
+      ) : route.status === 'error' ? (
+        // Mismo par "mensaje + reintentar" que `access-denied.tsx`, pero sin
+        // reusar el componente entero: `AccessDenied` es una pantalla
+        // completa con su propio `SafeAreaView` y un boton de cerrar sesion
+        // que no aplica dentro de esta hoja (la sesion aca es valida, lo que
+        // fallo fue pedir la ruta).
+        <View style={styles.centered}>
+          <ThemedText type="subtitle" style={styles.centeredText}>
+            No se pudo cargar la ruta
           </ThemedText>
-        ) : (
-          stops.map((stop) => <StopCard key={stop.id} stop={stop} />)
-        )}
-      </ScrollView>
+          <ThemedText themeColor="textSecondary" style={styles.centeredText}>
+            {route.error.message}
+          </ThemedText>
+          <Button title="Reintentar" onPress={() => void loadRoute()} />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.list}>
+          {route.route.stops.length === 0 ? (
+            <ThemedText themeColor="textSecondary" style={styles.empty}>
+              No tenés paradas asignadas hoy.
+            </ThemedText>
+          ) : (
+            route.route.stops.map((stop) => <StopCard key={stop.id} stop={stop} />)
+          )}
+        </ScrollView>
+      )}
     </ThemedView>
   );
 }
@@ -80,5 +118,15 @@ const styles = StyleSheet.create({
   empty: {
     textAlign: 'center',
     paddingTop: Spacing.four,
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.four,
+    gap: Spacing.three,
+  },
+  centeredText: {
+    textAlign: 'center',
   },
 });
