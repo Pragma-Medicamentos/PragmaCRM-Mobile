@@ -53,7 +53,17 @@ export const useRouteStore = create<RouteStore>((set, get) => ({
     } catch (error) {
       const apiError =
         error instanceof ApiError ? error : new ApiError(0, 'Ocurrió un error inesperado.');
-      set({ route: { status: 'error', error: apiError }, refreshing: false });
+
+      // R10: un refresh fallido sobre datos que ya estaban en pantalla no los
+      // tira -- si no, un tropiezo de red transitorio durante un
+      // pull-to-refresh desmontaria el mapa, exactamente lo que el flag
+      // `refreshing` existe para evitar, solo que llegando por el camino del
+      // error en lugar del de `pending`. `status: 'error'` queda reservado
+      // para cuando la primera carga falla y no hay nada que conservar.
+      set({
+        route: alreadyLoaded ? get().route : { status: 'error', error: apiError },
+        refreshing: false,
+      });
       return apiError.message;
     }
   },
@@ -77,8 +87,17 @@ export function initRoute(): void {
   if (subscribed) return;
   subscribed = true;
 
-  useAuthStore.subscribe((state) => {
-    if (state.profile.status === 'idle') {
+  useAuthStore.subscribe((state, previous) => {
+    // Se compara contra el estado anterior porque `profile` tambien vale
+    // `idle` en frio (arranque de la app) y durante todo el tramo entre el
+    // SIGNED_IN y que `loadProfile()` resuelve. Una comparacion por nivel
+    // ("si status === 'idle'") dispararia el reset con cada emision de
+    // auth-store que encuentre `profile` todavia en `idle` -- incluida la
+    // que sigue a un login exitoso -- y borraria una ruta recien cargada o en
+    // vuelo. Solo el flanco (paso de "no idle" a "idle") es la senal real de
+    // sign-out o cambio de vendedor que initAuth ya calculo.
+    const justWentIdle = previous.profile.status !== 'idle' && state.profile.status === 'idle';
+    if (justWentIdle) {
       useRouteStore.setState({ route: { status: 'idle' }, refreshing: false });
     }
   });
