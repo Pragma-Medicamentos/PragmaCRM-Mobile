@@ -7,7 +7,7 @@ import { RouteMap } from '@/components/route-map';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
-import { BottomTabInset, Spacing, withAlpha } from '@/constants/theme';
+import { Spacing, withAlpha } from '@/constants/theme';
 import { useDeviceLocation } from '@/hooks/use-device-location';
 import { useTheme } from '@/hooks/use-theme';
 import { buildGoogleMapsLink } from '@/lib/google-maps-link';
@@ -83,7 +83,16 @@ export default function HomeScreen() {
           )}
         </View>
 
-        <View style={[styles.bottomBar, { paddingBottom: BottomTabInset + Spacing.three }]}>
+        {/*
+          Sin padding inferior extra a proposito: `BottomTabInset` (theme.ts)
+          es para pantallas con scroll que necesitan no esconder contenido
+          detras del `NativeTabs` nativo. Esta barra es fija, ya vive dentro
+          del `SafeAreaView` de arriba, y `NativeTabs` pinta su propia franja
+          debajo -- sumar `BottomTabInset` aca contaba el inset dos veces (se
+          comprobo en el emulador: quitandolo el boton queda pegado a la
+          franja nativa sin que el sistema tape nada).
+        */}
+        <View style={styles.bottomBar}>
           {stopCount !== null && (
             <Button title={`▲ Ver paradas (${stopCount})`} onPress={() => router.push('/stops')} />
           )}
