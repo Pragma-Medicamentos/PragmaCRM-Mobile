@@ -91,17 +91,6 @@ export default function ProtectedLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={!mustSetPassword}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="stops"
-          options={{
-            presentation: 'formSheet',
-            sheetAllowedDetents: [0.68],
-            sheetGrabberVisible: true,
-            sheetCornerRadius: 20,
-            sheetLargestUndimmedDetentIndex: 0,
-            headerShown: false,
-          }}
-        />
       </Stack.Protected>
 
       <Stack.Screen name="set-password" />

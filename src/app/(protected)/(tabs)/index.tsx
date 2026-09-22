@@ -1,9 +1,10 @@
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Linking, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { RouteMap } from '@/components/route-map';
+import { StopsSheet } from '@/components/stops-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,9 @@ export default function HomeScreen() {
   const signOut = useAuthStore((state) => state.signOut);
   const route = useRouteStore((state) => state.route);
   const loadRoute = useRouteStore((state) => state.loadRoute);
+  // La hoja de paradas vive como componente (`stops-sheet.tsx`), no como ruta:
+  // ver el comentario largo mas abajo, junto al boton que la abre.
+  const stopsSheetRef = useRef<ComponentRef<typeof BottomSheetModal>>(null);
   // R12: el circuito de distancia se cierra aca -- esta pantalla obtiene la
   // ubicacion del dispositivo y la pasa al mapa (para el punto azul) y a
   // stops.tsx la obtiene de nuevo por su cuenta para pasarsela a StopCard
@@ -92,12 +96,30 @@ export default function HomeScreen() {
           comprobo en el emulador: quitandolo el boton queda pegado a la
           franja nativa sin que el sistema tape nada).
         */}
+        {/*
+          `▲ Ver paradas` abre `StopsSheet` por ref (`.present()`) en vez de
+          navegar a una ruta: `stops.tsx` era una ruta solo porque el formSheet
+          nativo de expo-router es una `presentation`, no un componente. gorhom
+          es lo opuesto -- un componente que se porta sobre el arbol, no una
+          presentacion de router -- asi que forzarlo a una ruta hubiera dejado
+          dos animaciones de entrada compitiendo (la del Stack y la de la hoja)
+          y habria significado envolver la pantalla del mapa en un Stack solo
+          para tapar la ruta con la hoja encima. Montarlo aca directamente
+          tambien es lo unico que garantiza "el mapa se ve detras de la hoja"
+          (pedido explicito del wireframe): con una ruta, la pantalla de mapa
+          se desmonta o queda tapada segun el tipo de presentation elegido.
+        */}
         <View style={styles.bottomBar}>
           {stopCount !== null && (
-            <Button title={`▲ Ver paradas (${stopCount})`} onPress={() => router.push('/stops')} />
+            <Button
+              title={`▲ Ver paradas (${stopCount})`}
+              onPress={() => stopsSheetRef.current?.present()}
+            />
           )}
         </View>
       </SafeAreaView>
+
+      <StopsSheet ref={stopsSheetRef} />
 
       {/*
         Action sheet minimo: el placeholder anterior de esta pantalla era el

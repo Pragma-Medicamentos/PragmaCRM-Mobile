@@ -1,27 +1,35 @@
-import { useEffect } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  type BottomSheetBackdropProps,
+} from '@gorhom/bottom-sheet';
+import { forwardRef, useCallback, useEffect, useMemo, type ComponentRef } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import { StopCard } from '@/components/stop-card';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Button } from '@/components/ui/button';
+import { StopCard } from './stop-card';
+import { ThemedText } from './themed-text';
+import { Button } from './ui/button';
+
 import { Spacing } from '@/constants/theme';
 import { useDeviceLocation } from '@/hooks/use-device-location';
 import { useTheme } from '@/hooks/use-theme';
 import { useRouteStore } from '@/stores/route-store';
 
 /**
- * Hoja de paradas: `presentation: 'formSheet'` (declarado en `_layout.tsx`)
- * ya da el radio, el grabber nativo y el traspaso de scroll/pan. El grabber
- * y el borde de arriba de aca abajo son de todas formas necesarios porque
- * `sheetGrabberVisible` es solo de iOS -- en Android, donde `formSheet` cae
- * a un modal comun, esta es la unica señal visual de que hay una hoja.
+ * Hoja de paradas, migrada de una ruta (`/stops` con `presentation: 'formSheet'`)
+ * a este componente sobre `@gorhom/bottom-sheet`. Ver el comentario en
+ * `(tabs)/index.tsx` (donde se monta) para el porque del cambio de arquitectura.
  *
  * Son entre cinco y diez paradas por dia (el tope real de un vendedor), asi
- * que un `ScrollView` con `.map()` alcanza: un `FlatList` sumaria una
- * segunda dimension de scroll (virtualizacion) sin beneficio a este tamaño.
+ * que `BottomSheetScrollView` con `.map()` alcanza: un `BottomSheetFlatList`
+ * sumaria una segunda dimension de scroll (virtualizacion) sin beneficio a
+ * este tamaño.
  */
-export default function StopsScreen() {
+export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>>(function StopsSheet(
+  _props,
+  ref,
+) {
   const theme = useTheme();
   const route = useRouteStore((state) => state.route);
   const loadRoute = useRouteStore((state) => state.loadRoute);
@@ -32,15 +40,15 @@ export default function StopsScreen() {
   // StopCard ya sabe degradar a `{zona} ›` sin romperse.
   const { location } = useDeviceLocation();
 
-  // `idle` solo pasa por navegacion directa a esta pantalla (deep link, por
-  // ejemplo): el boton que empuja aca en (tabs)/index.tsx ya solo aparece con
-  // `route.status === 'ready'`, y esa misma pantalla ya dispara `loadRoute()`
-  // al montar si la encuentra en `idle`. Se repite el mismo patron aca en vez
-  // de asumir que la otra pantalla ya la pidio, para que esta hoja tambien
-  // funcione sola.
+  // `idle` solo pasa por el primer render de la app (antes de que
+  // (tabs)/index.tsx dispare `loadRoute()` al montar). Se repite el mismo
+  // patron aca en vez de asumir que la otra pantalla ya la pidio, para que
+  // esta hoja tambien funcione si en el futuro se abre desde otro lugar.
   useEffect(() => {
     if (route.status === 'idle') void loadRoute();
   }, [route.status, loadRoute]);
+
+  const snapPoints = useMemo(() => ['68%'], []);
 
   // El conteo del encabezado no se puede calcular fuera de `ready`: mostrar
   // "(0)" mientras todavia esta cargando o mientras fallo es la misma mentira
@@ -48,14 +56,50 @@ export default function StopsScreen() {
   const headerLabel =
     route.status === 'ready' ? `Paradas de hoy (${route.route.stops.length})` : 'Paradas de hoy';
 
-  return (
-    <ThemedView style={styles.container}>
-      <View style={[styles.topBorder, { backgroundColor: theme.text }]} />
-
-      <View accessible={false} importantForAccessibility="no-hide-descendants" style={styles.handleRow}>
-        <View style={[styles.handle, { backgroundColor: theme.backgroundSelected }]} />
+  // Mismo grabber armado a mano que tenia `stops.tsx`: `handleIndicatorStyle`
+  // de gorhom es un solo elemento y no alcanza para reproducir el borde
+  // superior de 3px del wireframe, asi que se arma el handle completo aca.
+  const renderHandle = useCallback(
+    () => (
+      <View>
+        <View style={[styles.topBorder, { backgroundColor: theme.text }]} />
+        <View
+          accessible={false}
+          importantForAccessibility="no-hide-descendants"
+          style={styles.handleRow}>
+          <View style={[styles.handle, { backgroundColor: theme.backgroundSelected }]} />
+        </View>
       </View>
+    ),
+    [theme],
+  );
 
+  // Sin velo oscuro (`opacity={0}`): el mapa tiene que seguir visible detras
+  // de la hoja, igual que con `sheetLargestUndimmedDetentIndex: 0` en la
+  // version de ruta. `pressBehavior="close"` conserva el toque-afuera-cierra
+  // que traia el formSheet nativo.
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        opacity={0}
+        pressBehavior="close"
+      />
+    ),
+    [],
+  );
+
+  return (
+    <BottomSheetModal
+      ref={ref}
+      index={0}
+      snapPoints={snapPoints}
+      enablePanDownToClose
+      handleComponent={renderHandle}
+      backdropComponent={renderBackdrop}
+      backgroundStyle={[styles.background, { backgroundColor: theme.background }]}>
       <View style={[styles.header, { borderBottomColor: theme.backgroundSelected }]}>
         <ThemedText type="default">{headerLabel}</ThemedText>
       </View>
@@ -82,26 +126,25 @@ export default function StopsScreen() {
           </ThemedText>
           <Button title="Reintentar" onPress={() => void loadRoute()} />
         </View>
+      ) : route.route.stops.length === 0 ? (
+        <ThemedText themeColor="textSecondary" style={styles.empty}>
+          No tenés paradas asignadas hoy.
+        </ThemedText>
       ) : (
-        <ScrollView contentContainerStyle={styles.list}>
-          {route.route.stops.length === 0 ? (
-            <ThemedText themeColor="textSecondary" style={styles.empty}>
-              No tenés paradas asignadas hoy.
-            </ThemedText>
-          ) : (
-            route.route.stops.map((stop) => (
-              <StopCard key={stop.id} stop={stop} currentLocation={location} />
-            ))
-          )}
-        </ScrollView>
+        <BottomSheetScrollView contentContainerStyle={styles.list}>
+          {route.route.stops.map((stop) => (
+            <StopCard key={stop.id} stop={stop} currentLocation={location} />
+          ))}
+        </BottomSheetScrollView>
       )}
-    </ThemedView>
+    </BottomSheetModal>
   );
-}
+});
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  background: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   topBorder: {
     height: 3,
@@ -127,6 +170,7 @@ const styles = StyleSheet.create({
   empty: {
     textAlign: 'center',
     paddingTop: Spacing.four,
+    paddingHorizontal: Spacing.three,
   },
   centered: {
     flex: 1,
