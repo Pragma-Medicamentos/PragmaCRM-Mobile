@@ -33,7 +33,14 @@
           "imageWidth": 90
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-maps",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Permití que PragmaCRM-Mobile use tu ubicación para ubicarte en el mapa de la ruta del día."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
