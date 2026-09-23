@@ -19,7 +19,7 @@ import { useRouteStore } from '@/stores/route-store';
 /**
  * Hoja de paradas, migrada de una ruta (`/stops` con `presentation: 'formSheet'`)
  * a este componente sobre `@gorhom/bottom-sheet`. Ver el comentario en
- * `(tabs)/index.tsx` (donde se monta) para el porque del cambio de arquitectura.
+ * `(protected)/index.tsx` (donde se monta) para el porque del cambio de arquitectura.
  *
  * Son entre cinco y diez paradas por dia (el tope real de un vendedor), asi
  * que `BottomSheetScrollView` con `.map()` alcanza: un `BottomSheetFlatList`
@@ -34,16 +34,16 @@ export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>>(func
   const route = useRouteStore((state) => state.route);
   const loadRoute = useRouteStore((state) => state.loadRoute);
   // R12: esta hoja abre su propia suscripcion de ubicacion (independiente de
-  // la del mapa en (tabs)/index.tsx -- ver el comentario de
+  // la del mapa en (protected)/index.tsx -- ver el comentario de
   // useDeviceLocation) para poder mostrar distancia en cada tarjeta. Con
   // permiso denegado o sin fix todavia, `location` queda en null y
   // StopCard ya sabe degradar a `{zona} ›` sin romperse.
   const { location } = useDeviceLocation();
 
   // `idle` solo pasa por el primer render de la app (antes de que
-  // (tabs)/index.tsx dispare `loadRoute()` al montar). Se repite el mismo
-  // patron aca en vez de asumir que la otra pantalla ya la pidio, para que
-  // esta hoja tambien funcione si en el futuro se abre desde otro lugar.
+  // (protected)/index.tsx dispare `loadRoute()` al montar). Se repite el
+  // mismo patron aca en vez de asumir que la otra pantalla ya la pidio, para
+  // que esta hoja tambien funcione si en el futuro se abre desde otro lugar.
   useEffect(() => {
     if (route.status === 'idle') void loadRoute();
   }, [route.status, loadRoute]);

@@ -1,14 +1,15 @@
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Linking, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppMenu } from '@/components/app-menu';
 import { RouteMap } from '@/components/route-map';
 import { StopsSheet } from '@/components/stops-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
-import { Spacing, withAlpha } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useDeviceLocation } from '@/hooks/use-device-location';
 import { useTheme } from '@/hooks/use-theme';
 import { buildGoogleMapsLink } from '@/lib/google-maps-link';
@@ -18,7 +19,6 @@ import { useRouteStore } from '@/stores/route-store';
 export default function HomeScreen() {
   const theme = useTheme();
   const profile = useAuthStore((state) => state.profile);
-  const signOut = useAuthStore((state) => state.signOut);
   const route = useRouteStore((state) => state.route);
   const loadRoute = useRouteStore((state) => state.loadRoute);
   // La hoja de paradas vive como componente (`stops-sheet.tsx`), no como ruta:
@@ -48,15 +48,11 @@ export default function HomeScreen() {
   // nada que enlazar, el boton de Google Maps no tiene sentido y se esconde.
   const googleMapsLink = buildGoogleMapsLink(stops);
 
-  function closeMenu() {
-    setMenuVisible(false);
-  }
-
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.topBar}>
-          <ThemedText type="subtitle" numberOfLines={1} style={styles.greeting}>
+          <ThemedText type="heading" numberOfLines={1} style={styles.greeting}>
             Hola, {me?.name ?? 'vendedor'}
           </ThemedText>
 
@@ -69,7 +65,7 @@ export default function HomeScreen() {
               { backgroundColor: theme.backgroundElement },
               pressed && styles.pressed,
             ]}>
-            <ThemedText type="subtitle">☰</ThemedText>
+            <ThemedText type="heading">☰</ThemedText>
           </Pressable>
         </View>
 
@@ -87,15 +83,6 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/*
-          Sin padding inferior extra a proposito: `BottomTabInset` (theme.ts)
-          es para pantallas con scroll que necesitan no esconder contenido
-          detras del `NativeTabs` nativo. Esta barra es fija, ya vive dentro
-          del `SafeAreaView` de arriba, y `NativeTabs` pinta su propia franja
-          debajo -- sumar `BottomTabInset` aca contaba el inset dos veces (se
-          comprobo en el emulador: quitandolo el boton queda pegado a la
-          franja nativa sin que el sistema tape nada).
-        */}
         {/*
           `▲ Ver paradas` abre `StopsSheet` por ref (`.present()`) en vez de
           navegar a una ruta: `stops.tsx` era una ruta solo porque el formSheet
@@ -121,34 +108,7 @@ export default function HomeScreen() {
 
       <StopsSheet ref={stopsSheetRef} />
 
-      {/*
-        Action sheet minimo: el placeholder anterior de esta pantalla era el
-        unico lugar de la app con `signOut()`. El wireframe lo reemplaza por
-        este menu -- si se perdiera sin cablear "Cerrar sesión" detras, nadie
-        podria salir de la app. El menu de mas opciones (pantalla 10) es otro
-        ticket; esto es solo lo minimo para no perder la funcion.
-      */}
-      <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={closeMenu}>
-        <Pressable
-          style={[styles.backdrop, { backgroundColor: withAlpha('#000000', 0.4) }]}
-          onPress={closeMenu}
-          accessibilityRole="button"
-          accessibilityLabel="Cerrar menú">
-          <Pressable
-            onPress={() => {}}
-            accessibilityRole="none"
-            style={[styles.menuSheet, { backgroundColor: theme.background }]}>
-            <Button
-              title="Cerrar sesión"
-              variant="secondary"
-              onPress={() => {
-                closeMenu();
-                void signOut();
-              }}
-            />
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <AppMenu visible={menuVisible} onClose={() => setMenuVisible(false)} />
     </ThemedView>
   );
 }
@@ -193,14 +153,9 @@ const styles = StyleSheet.create({
   bottomBar: {
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.three,
-  },
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  menuSheet: {
-    padding: Spacing.four,
-    borderTopLeftRadius: Spacing.four,
-    borderTopRightRadius: Spacing.four,
+    // `NativeTabs` pintaba su propia franja debajo de esta barra; al
+    // quitarse los tabs (PCRM-47) el boton quedaba pegado a la barra de
+    // gestos de Android sin este padding.
+    paddingBottom: Spacing.three,
   },
 });

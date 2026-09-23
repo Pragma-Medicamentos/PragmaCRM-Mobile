@@ -36,12 +36,13 @@ export type DeviceLocationState = {
  * esta abierta -- una queja de bateria esperando a pasar para algo que no lo
  * necesita.
  *
- * Se usa desde mas de una pantalla ((tabs)/index.tsx para el mapa, stops.tsx
- * para las tarjetas): cada montaje abre su propia suscripcion y la cierra al
- * desmontar, en vez de compartir un singleton -- son paradas de la misma app
- * que rara vez estan montadas a la vez (stops.tsx es un formSheet sobre
- * index.tsx), asi que el costo de una segunda suscripcion cuando si lo estan
- * es minimo comparado con la complejidad de coordinar un estado global.
+ * Se usa desde mas de un lugar ((protected)/index.tsx para el mapa,
+ * stops-sheet.tsx para las tarjetas): cada montaje abre su propia suscripcion
+ * y la cierra al desmontar, en vez de compartir un singleton -- son paradas
+ * de la misma app que rara vez estan montadas a la vez (stops-sheet.tsx es un
+ * componente que se presenta sobre index.tsx, no una ruta aparte), asi que el
+ * costo de una segunda suscripcion cuando si lo estan es minimo comparado con
+ * la complejidad de coordinar un estado global.
  */
 export function useDeviceLocation(): DeviceLocationState {
   const [location, setLocation] = useState<Coordinates | null>(null);
