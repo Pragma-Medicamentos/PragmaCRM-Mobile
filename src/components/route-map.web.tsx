@@ -1,5 +1,7 @@
+import { forwardRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import type { RouteMapHandle } from './route-map';
 import { ThemedText } from './themed-text';
 
 import { Spacing } from '@/constants/theme';
@@ -13,8 +15,12 @@ import { Spacing } from '@/constants/theme';
  * copia de la lista de paradas. La lista ya es alcanzable en web desde el
  * boton "Ver paradas" de `(protected)/index.tsx`; duplicarla aca dejaria dos
  * listas que pueden divergir entre si.
+ *
+ * Acepta el mismo `ref` que la version nativa para que `(protected)/index.tsx`
+ * no tenga que distinguir plataformas; sin mapa, `focusStop` no tiene nada
+ * que mover y el ref simplemente queda en null.
  */
-export function RouteMap() {
+export const RouteMap = forwardRef<RouteMapHandle, object>(function RouteMap() {
   return (
     <View style={styles.container}>
       <ThemedText themeColor="textSecondary" style={styles.text}>
@@ -22,7 +28,7 @@ export function RouteMap() {
       </ThemedText>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

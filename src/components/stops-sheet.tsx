@@ -12,6 +12,7 @@ import { ThemedText } from './themed-text';
 import { Button } from './ui/button';
 
 import { Spacing } from '@/constants/theme';
+import type { DailyRouteStop } from '@/lib/daily-route';
 import { useDeviceLocation } from '@/hooks/use-device-location';
 import { useTheme } from '@/hooks/use-theme';
 import { useRouteStore } from '@/stores/route-store';
@@ -26,8 +27,13 @@ import { useRouteStore } from '@/stores/route-store';
  * sumaria una segunda dimension de scroll (virtualizacion) sin beneficio a
  * este tamaño.
  */
-export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>>(function StopsSheet(
-  _props,
+type Props = {
+  /** Se llama al tocar una tarjeta con GPS; las que no tienen quedan inertes. */
+  onStopPress?: (stop: DailyRouteStop) => void;
+};
+
+export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>, Props>(function StopsSheet(
+  { onStopPress },
   ref,
 ) {
   const theme = useTheme();
@@ -133,7 +139,12 @@ export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>>(func
       ) : (
         <BottomSheetScrollView contentContainerStyle={styles.list}>
           {route.route.stops.map((stop) => (
-            <StopCard key={stop.id} stop={stop} currentLocation={location} />
+            <StopCard
+              key={stop.id}
+              stop={stop}
+              currentLocation={location}
+              onPress={onStopPress && stop.location ? () => onStopPress(stop) : undefined}
+            />
           ))}
         </BottomSheetScrollView>
       )}

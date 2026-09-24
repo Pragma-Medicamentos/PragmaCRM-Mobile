@@ -79,7 +79,10 @@ export interface DailyRoute {
    * llegan vacios juntos, nunca uno sin el otro.
    */
   routes: RouteRef[];
-  /** Plana y ya ordenada. El cliente no reordena. */
+  /**
+   * Plana y ya ordenada. El cliente no reordena, salvo el link de Google Maps
+   * (ver `route-order.ts`), que no toca este arreglo.
+   */
   stops: DailyRouteStop[];
 }
 

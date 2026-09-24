@@ -37,13 +37,18 @@ from PIL import Image, ImageDraw
 # Geometria del pin en puntos @1x. `R` es el radio de la cabeza (circulo),
 # `L` es la distancia del centro de la cabeza a la punta de la cola -- L > R
 # para que la cola sobresalga del circulo. `STROKE` es el ancho del borde.
-CANVAS_WIDTH = 24.0
-CANVAS_HEIGHT = 25.0
-CENTER_X = 12.0
-CENTER_Y = 9.0
-HEAD_RADIUS = 8.0
-TIP_DISTANCE = 16.0
-STROKE_WIDTH = 2.0
+#
+# 1.5x del tamaño original (24x25): a 24pt los pines se perdian entre los
+# iconos de lugares de Google Maps. La punta tiene que seguir cayendo justo en
+# el borde inferior del lienzo (CENTER_Y + TIP_DISTANCE == CANVAS_HEIGHT),
+# porque `PIN_ANCHOR` en route-map.tsx ancla el pixel (0.5, 1).
+CANVAS_WIDTH = 36.0
+CANVAS_HEIGHT = 38.0
+CENTER_X = 18.0
+CENTER_Y = 14.0
+HEAD_RADIUS = 12.0
+TIP_DISTANCE = 24.0
+STROKE_WIDTH = 3.0
 
 # Supersampling: se dibuja a esta cantidad de veces la resolucion final y
 # se reduce con LANCZOS, que es el filtro que Pillow recomienda para
