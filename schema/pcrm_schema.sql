@@ -186,7 +186,11 @@ create table public.scheduled_visit (
 
     -- una parada apunta a un cliente O a un prospecto, no a ambos ni a ninguno
     constraint scheduled_visit_target_chk
-        check (num_nonnulls(customer_id, prospect_id) = 1)
+        check (num_nonnulls(customer_id, prospect_id) = 1),
+
+    -- clasificacion estricta de la parada (PCRM-46): visita | despacho | cobro
+    constraint scheduled_visit_stop_type_chk
+        check (stop_type in ('visit', 'dispatch', 'collection'))
 );
 
 create index scheduled_visit_date_idx
@@ -216,12 +220,20 @@ create table public.visit (
     notes              text,
     created_at         timestamptz not null default now(),
     updated_at         timestamptz not null default now(),
-    deleted_at         timestamptz
+    deleted_at         timestamptz,
+    -- enlace ejecucion -> planificacion (PCRM-46). Sin el, completed_at de la ruta
+    -- del dia se tendria que inferir y no distinguiria despacho/cobro repetidos
+    -- al mismo cliente el mismo dia.
+    scheduled_visit_id uuid        references public.scheduled_visit (id)
 );
 
 create index visit_customer_id_idx on public.visit (customer_id) where deleted_at is null;
 create index visit_user_id_idx     on public.visit (user_id) where deleted_at is null;
 create index visit_started_at_idx  on public.visit (started_at) where deleted_at is null;
+
+-- a lo sumo una ejecucion por parada planificada (indice unico parcial)
+create unique index visit_scheduled_visit_uq
+    on public.visit (scheduled_visit_id) where scheduled_visit_id is not null and deleted_at is null;
 
 
 -- solicitud_producto -> product_request

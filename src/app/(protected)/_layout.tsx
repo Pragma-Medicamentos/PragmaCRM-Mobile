@@ -85,12 +85,13 @@ export default function ProtectedLayout() {
 
   // `set-password` queda SIN guard a proposito. Si se protegiera con la
   // condicion inversa seria inalcanzable durante una recuperacion; dejandola
-  // como unica pantalla disponible, el router cae en ella cuando los tabs
-  // desaparecen, y eso la vuelve obligatoria sin ruta de escape.
+  // como unica pantalla disponible, el router cae en ella cuando la pantalla
+  // de indice desaparece del guard, y eso la vuelve obligatoria sin ruta de
+  // escape.
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={!mustSetPassword}>
-        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="index" />
       </Stack.Protected>
 
       <Stack.Screen name="set-password" />

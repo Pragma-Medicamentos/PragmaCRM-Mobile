@@ -76,7 +76,6 @@ export const Spacing = {
   six: 64,
 } as const;
 
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;
 
 /**
@@ -96,3 +95,50 @@ export function withAlpha(hex: string, alpha: number): string {
 
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
+
+/**
+ * Colores de los pills de tipo de parada en la tarjeta de ruta diaria.
+ *
+ * Viven fuera de `brand`/`Colors` a proposito: `Colors` es la paleta de marca
+ * (ver el comentario de `brand` arriba) y `ThemeColor` es
+ * `keyof typeof Colors.light`, que es lo que acepta el prop `themeColor` de
+ * `ThemedText`. Meter estos colores dentro de `Colors` los habilitaria para
+ * ese prop -- exactamente lo que no queremos, porque son colores de estado de
+ * un dominio (tipo de parada), no colores de marca. Se aplican inline con
+ * `style={{ color: ... }}`.
+ *
+ * Visita usa el verde de marca (`tint` para texto, `tintBright` para el
+ * borde) en vez del `#00AC00` del wireframe: asi el pill respeta la
+ * identidad de Farmacia Pragma en vez de copiar un verde generico.
+ *
+ * El fondo de cada pill sale de `withAlpha()`, nunca de un `rgba()` a mano:
+ * Android interpola feo hacia `transparent` si el string no viene de ahi.
+ */
+export const StopTypeColors = {
+  visita: {
+    text: brand.tint,
+    border: brand.tintBright,
+    background: withAlpha(brand.tintBright, 0.12),
+  },
+  despacho: {
+    text: '#1C4F9C',
+    border: '#2A6FDB',
+    background: withAlpha('#2A6FDB', 0.12),
+  },
+  cobro: {
+    text: '#8A5800',
+    border: '#D98C00',
+    background: withAlpha('#D98C00', 0.12),
+  },
+} as const;
+
+/**
+ * El badge "Extra" (parada agregada fuera de la planificacion) no es un tipo
+ * de parada mas, asi que no suma una cuarta entrada a `StopTypeColors`: solo
+ * necesita el borde punteado sobre `textSecondary`. Se expone aca para que
+ * el componente de la tarjeta importe un unico modulo de tokens para los
+ * cuatro pills en vez de mezclar `theme.textSecondary` y `StopTypeColors`.
+ * El trazo punteado en si (`borderStyle: 'dashed'`) es un detalle de layout,
+ * no de color, y va en la hoja de estilos del componente.
+ */
+export const ExtraBadgeBorderColor = brand.textSecondary;
