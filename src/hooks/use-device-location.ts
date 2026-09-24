@@ -61,6 +61,23 @@ export function useDeviceLocation(): DeviceLocationState {
         return;
       }
 
+      // El primer evento de `watchPositionAsync` puede tardar varios
+      // segundos. Mientras tanto, el link de Google Maps caeria al orden del
+      // backend en vez de ordenar por cercania (ver `route-order.ts`), asi que
+      // se siembra con la ultima posicion conocida, que el sistema responde al
+      // instante. Si ya llego un evento del watch, no se pisa. Con los
+      // servicios de ubicacion apagados rechaza: se ignora, el watch de abajo
+      // ya maneja ese caso dejando `location` en null.
+      Location.getLastKnownPositionAsync()
+        .then((position) => {
+          if (cancelled || !position) return;
+          setLocation(
+            (current) =>
+              current ?? { lat: position.coords.latitude, lng: position.coords.longitude },
+          );
+        })
+        .catch(() => {});
+
       const subscription = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.Balanced, distanceInterval: DISTANCE_INTERVAL_METERS },
         (position) => {

@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { StopBadge } from './stop-badge';
 import { StopPill } from './stop-pill';
@@ -19,6 +19,11 @@ type Props = {
    * sin `location` en la parada se degrada igual que sin GPS.
    */
   currentLocation?: Coordinates | null;
+  /**
+   * Sin handler la tarjeta no es tocable: quien la monta decide (la hoja no
+   * lo pasa para paradas sin GPS, que no tienen pin donde centrar el mapa).
+   */
+  onPress?: () => void;
 };
 
 /**
@@ -48,16 +53,24 @@ function buildSubtitle(stop: DailyRouteStop, currentLocation: Coordinates | null
 }
 
 /** Tarjeta de una parada en la lista de la ruta diaria. */
-export function StopCard({ stop, currentLocation }: Props) {
+export function StopCard({ stop, currentLocation, onPress }: Props) {
   const theme = useTheme();
   const isCompleted = stop.completed_at !== null;
   const subtitle = buildSubtitle(stop, currentLocation);
 
   return (
-    <View
-      accessibilityRole="summary"
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole={onPress ? 'button' : 'summary'}
       accessibilityLabel={`${stop.name}${isCompleted ? ', completada' : ''}, ${subtitle}`}
-      style={[styles.card, { backgroundColor: theme.backgroundElement }, isCompleted && styles.completed]}>
+      accessibilityHint={onPress ? 'Muestra la parada en el mapa' : undefined}
+      style={({ pressed }) => [
+        styles.card,
+        { backgroundColor: theme.backgroundElement },
+        isCompleted && styles.completed,
+        pressed && styles.pressed,
+      ]}>
       <View style={styles.headerRow}>
         <ThemedText type="smallBold" style={styles.name} numberOfLines={1}>
           {stop.name}
@@ -75,7 +88,7 @@ export function StopCard({ stop, currentLocation }: Props) {
       <ThemedText type="small" themeColor="textSecondary">
         {subtitle}
       </ThemedText>
-    </View>
+    </Pressable>
   );
 }
 
@@ -87,6 +100,9 @@ const styles = StyleSheet.create({
   },
   completed: {
     opacity: 0.5,
+  },
+  pressed: {
+    opacity: 0.7,
   },
   headerRow: {
     flexDirection: 'row',
