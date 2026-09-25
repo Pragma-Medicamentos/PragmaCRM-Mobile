@@ -1,3 +1,5 @@
+import { API_TIMEOUT_MESSAGE, DEFAULT_API_TIMEOUT_MS, armRequestTimeout, isTimeoutFailure } from '@/lib/api-timeout';
+
 export const ROLES = {
   ADMIN: 'Administrador',
   SELLER: 'Vendedor',
@@ -74,24 +76,57 @@ if (!apiKey) {
  * "account not authorized" (403).
  */
 export async function apiFetch<T>(path: string, token: string | null, init?: RequestInit): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(`${baseUrl}${path}`, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...init?.headers,
+  const timeout = armRequestTimeout(DEFAULT_API_TIMEOUT_MS, init?.signal);
+  // Si `fetch` no rechaza al abortar, esta promesa igual suelta la UI.
+  const timeoutResult = new Promise<never>((_, reject) => {
+    timeout.signal.addEventListener(
+      'abort',
+      () => {
+        reject(
+          timeout.didTimeOut()
+            ? new ApiError(0, API_TIMEOUT_MESSAGE)
+            : (timeout.signal.reason ?? new Error('aborted')),
+        );
       },
-    });
-  } catch {
-    throw new ApiError(0, 'No se pudo conectar con el servidor.');
-  }
+      { once: true },
+    );
+  });
+  timeoutResult.catch(() => {});
 
-  const body = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new ApiError(response.status, body?.message ?? 'Ocurrió un error inesperado.');
+  const fail = (error: unknown): never => {
+    if (error instanceof ApiError) throw error;
+    if (isTimeoutFailure(error, timeout.didTimeOut())) {
+      throw new ApiError(0, API_TIMEOUT_MESSAGE);
+    }
+    throw new ApiError(0, 'No se pudo conectar con el servidor.');
+  };
+
+  try {
+    const response = await Promise.race([
+      fetch(`${baseUrl}${path}`, {
+        ...init,
+        signal: timeout.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...init?.headers,
+        },
+      }),
+      timeoutResult,
+    ]);
+    const body = (await Promise.race([
+      response.json().catch(() => null),
+      timeoutResult,
+    ])) as { message?: string; data?: T } | null;
+
+    if (!response.ok) {
+      throw new ApiError(response.status, body?.message ?? 'Ocurrió un error inesperado.');
+    }
+    return body?.data as T;
+  } catch (error) {
+    return fail(error);
+  } finally {
+    timeout.clear();
   }
-  return body?.data as T;
 }
