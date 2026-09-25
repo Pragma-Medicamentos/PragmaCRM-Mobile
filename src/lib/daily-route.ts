@@ -96,7 +96,7 @@ export interface DailyRoute {
  * Nunca devuelve 404: un vendedor sin ruta ese dia es una respuesta valida
  * con `routes: []` y `stops: []`.
  */
-export function fetchDailyRoute(token: string | null, date?: string): Promise<DailyRoute> {
+export function fetchDailyRoute(date?: string): Promise<DailyRoute> {
   const query = date ? `?date=${encodeURIComponent(date)}` : '';
-  return apiFetch<DailyRoute>(`/api/v1/me/route${query}`, token);
+  return apiFetch<DailyRoute>(`/api/v1/me/route${query}`);
 }

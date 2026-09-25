@@ -30,8 +30,11 @@ export default function HomeScreen() {
   // ver el comentario largo mas abajo, junto al boton que la abre.
   const stopsSheetRef = useRef<ComponentRef<typeof BottomSheetModal>>(null);
   const routeMapRef = useRef<RouteMapHandle>(null);
-  // Un solo watcher de GPS (ver useDeviceLocation). La hoja de paradas
-  // recibe la misma lectura; no abre otra suscripción.
+  // R12: el circuito de distancia se cierra aca -- esta pantalla obtiene la
+  // ubicacion del dispositivo y la pasa al mapa (para el punto azul) y a
+  // stops.tsx la obtiene de nuevo por su cuenta para pasarsela a StopCard
+  // (ver el comentario de useDeviceLocation sobre por que cada pantalla
+  // abre su propia suscripcion en vez de compartir una global).
   const { location } = useDeviceLocation();
   const [menuVisible, setMenuVisible] = useState(false);
 
@@ -132,7 +135,6 @@ export default function HomeScreen() {
       */}
       <StopsSheet
         ref={stopsSheetRef}
-        currentLocation={location}
         onStopPress={(stop) => {
           stopsSheetRef.current?.dismiss();
           routeMapRef.current?.focusStop(stop.id);

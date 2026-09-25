@@ -1,5 +1,5 @@
 import * as Location from 'expo-location';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { Coordinates } from '@/lib/distance';
 
@@ -24,100 +24,87 @@ export type DeviceLocationState = {
   permissionDenied: boolean;
 };
 
-type Listener = (state: DeviceLocationState) => void;
-
-const listeners = new Set<Listener>();
-let snapshot: DeviceLocationState = { location: null, permissionDenied: false };
-let subscription: Location.LocationSubscription | null = null;
-let startPromise: Promise<void> | null = null;
-
-function publish(partial: Partial<DeviceLocationState>) {
-  snapshot = { ...snapshot, ...partial };
-  for (const listener of listeners) listener(snapshot);
-}
-
 /**
- * Un solo `watchPositionAsync` para mapa y hoja de paradas. Los dos están
- * montados a la vez: cada uno llamaba este hook y abría su propio GPS.
- */
-function ensureWatch(): Promise<void> {
-  if (subscription) return Promise.resolve();
-  if (startPromise) return startPromise;
-
-  startPromise = (async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (listeners.size === 0) return;
-
-    if (status !== 'granted') {
-      publish({ permissionDenied: true });
-      return;
-    }
-
-    // El primer evento del watch puede tardar varios segundos. Mientras
-    // tanto el link de Maps caería al orden del backend, así que se siembra
-    // con la última posición conocida. Si el watch ya escribió, no se pisa.
-    try {
-      const last = await Location.getLastKnownPositionAsync();
-      if (listeners.size === 0) return;
-      if (last && !snapshot.location) {
-        publish({
-          location: { lat: last.coords.latitude, lng: last.coords.longitude },
-          permissionDenied: false,
-        });
-      }
-    } catch {
-      // Servicios apagados: el watch de abajo deja `location` en null.
-    }
-
-    if (listeners.size === 0 || subscription) return;
-
-    const next = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.Balanced, distanceInterval: DISTANCE_INTERVAL_METERS },
-      (position) => {
-        publish({
-          location: { lat: position.coords.latitude, lng: position.coords.longitude },
-          permissionDenied: false,
-        });
-      },
-    );
-
-    if (listeners.size === 0) {
-      next.remove();
-      return;
-    }
-
-    subscription = next;
-  })().finally(() => {
-    startPromise = null;
-  });
-
-  return startPromise;
-}
-
-function stopWatch() {
-  subscription?.remove();
-  subscription = null;
-}
-
-/**
- * Pide permiso de ubicación en primer plano y, si se concede, escucha la
- * posición con un único `Location.watchPositionAsync`.
+ * Pide permiso de ubicacion en primer plano y, si se concede, escucha la
+ * posicion del dispositivo con `Location.watchPositionAsync`.
  *
- * `Accuracy.Balanced` (~100 m) en vez de `Accuracy.High` (~10 m): esta pantalla
- * no da indicaciones giro a giro, solo ubica al vendedor y ordena distancias.
+ * `Accuracy.Balanced` (~100m) en vez de `Accuracy.High` (~10m) a proposito:
+ * esta pantalla no da indicaciones giro a giro (eso lo resuelve el deep link
+ * de Google Maps una vez que el vendedor lo abre), solo necesita ubicarlo en
+ * el mapa y ordenar/mostrar distancias en las tarjetas. `Accuracy.High`
+ * mantiene el GPS en su modo de mayor consumo todo el tiempo que la pantalla
+ * esta abierta -- una queja de bateria esperando a pasar para algo que no lo
+ * necesita.
+ *
+ * Se usa desde mas de un lugar ((protected)/index.tsx para el mapa,
+ * stops-sheet.tsx para las tarjetas): cada montaje abre su propia suscripcion
+ * y la cierra al desmontar, en vez de compartir un singleton -- son paradas
+ * de la misma app que rara vez estan montadas a la vez (stops-sheet.tsx es un
+ * componente que se presenta sobre index.tsx, no una ruta aparte), asi que el
+ * costo de una segunda suscripcion cuando si lo estan es minimo comparado con
+ * la complejidad de coordinar un estado global.
  */
 export function useDeviceLocation(): DeviceLocationState {
-  const [state, setState] = useState(snapshot);
+  const [location, setLocation] = useState<Coordinates | null>(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
 
   useEffect(() => {
-    listeners.add(setState);
-    void ensureWatch();
+    let cancelled = false;
+
+    async function start() {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (cancelled) return;
+
+      if (status !== 'granted') {
+        setPermissionDenied(true);
+        return;
+      }
+
+      // El primer evento de `watchPositionAsync` puede tardar varios
+      // segundos. Mientras tanto, el link de Google Maps caeria al orden del
+      // backend en vez de ordenar por cercania (ver `route-order.ts`), asi que
+      // se siembra con la ultima posicion conocida, que el sistema responde al
+      // instante. Si ya llego un evento del watch, no se pisa. Con los
+      // servicios de ubicacion apagados rechaza: se ignora, el watch de abajo
+      // ya maneja ese caso dejando `location` en null.
+      Location.getLastKnownPositionAsync()
+        .then((position) => {
+          if (cancelled || !position) return;
+          setLocation(
+            (current) =>
+              current ?? { lat: position.coords.latitude, lng: position.coords.longitude },
+          );
+        })
+        .catch(() => {});
+
+      const subscription = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.Balanced, distanceInterval: DISTANCE_INTERVAL_METERS },
+        (position) => {
+          setLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
+        },
+      );
+
+      // El componente pudo desmontarse mientras `watchPositionAsync`
+      // todavia estaba en vuelo -- sin este chequeo la suscripcion quedaria
+      // viva y sin nadie que la cierre (el cleanup de abajo ya corrio con
+      // `subscriptionRef.current` en null).
+      if (cancelled) {
+        subscription.remove();
+        return;
+      }
+
+      subscriptionRef.current = subscription;
+    }
+
+    void start();
 
     return () => {
-      listeners.delete(setState);
-      if (listeners.size === 0) stopWatch();
+      cancelled = true;
+      subscriptionRef.current?.remove();
+      subscriptionRef.current = null;
     };
   }, []);
 
-  return state;
+  return { location, permissionDenied };
 }
