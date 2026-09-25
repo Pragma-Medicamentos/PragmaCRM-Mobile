@@ -80,23 +80,72 @@ type FetchResult<T> =
   | { ok: true; data: T }
   | { ok: false; status: number; message: string };
 
+const API_TIMEOUT_MS = 20_000;
+const API_TIMEOUT_MESSAGE = 'La solicitud tardó demasiado. Intenta de nuevo.';
+
 /**
  * Unica salida HTTP hacia PragmaCRM-Api. Usa `expo/fetch` (Fetch de Expo,
  * WinterCG) para que un `EXPO_PUBLIC_USE_RN_FETCH=1` no baje estas llamadas
  * al fetch de React Native. Supabase sigue con su propio cliente.
+ *
+ * A los 20s se aborta con un AbortController (equivalente a AbortSignal.timeout,
+ * pero se puede desarmar para no cortar el cuerpo ya recibido). Si el fetch
+ * nativo no rechaza al abortar, la carrera igual suelta la UI.
  */
 async function perform<T>(path: string, token: string, init?: RequestInit): Promise<FetchResult<T>> {
-  let response: Response;
-  try {
-    response = await fetch(`${baseUrl}${path}`, {
-      ...init,
-      headers: buildApiHeaders(apiKey, token, init?.headers),
-    });
-  } catch {
-    throw new ApiError(0, 'No se pudo conectar con el servidor.');
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, API_TIMEOUT_MS);
+
+  const caller = init?.signal;
+  const onCallerAbort = () => controller.abort();
+  if (caller) {
+    if (caller.aborted) controller.abort();
+    else caller.addEventListener('abort', onCallerAbort, { once: true });
   }
 
-  const body = (await response.json().catch(() => null)) as { message?: string; data?: T } | null;
+  const timeoutResult = new Promise<never>((_, reject) => {
+    controller.signal.addEventListener(
+      'abort',
+      () => {
+        if (timedOut) reject(new ApiError(0, API_TIMEOUT_MESSAGE));
+      },
+      { once: true },
+    );
+  });
+  timeoutResult.catch(() => {});
+
+  const asTimeout = (error: unknown): never => {
+    if (error instanceof ApiError) throw error;
+    if (timedOut) throw new ApiError(0, API_TIMEOUT_MESSAGE);
+    throw new ApiError(0, 'No se pudo conectar con el servidor.');
+  };
+
+  let response: Response;
+  let body: { message?: string; data?: T } | null;
+  try {
+    response = await Promise.race([
+      fetch(`${baseUrl}${path}`, {
+        ...init,
+        signal: controller.signal,
+        headers: buildApiHeaders(apiKey, token, init?.headers),
+      }),
+      timeoutResult,
+    ]);
+    body = (await Promise.race([response.json().catch(() => null), timeoutResult])) as {
+      message?: string;
+      data?: T;
+    } | null;
+  } catch (error) {
+    return asTimeout(error);
+  } finally {
+    clearTimeout(timeoutId);
+    caller?.removeEventListener('abort', onCallerAbort);
+  }
+
   if (!response.ok) {
     return {
       ok: false,
