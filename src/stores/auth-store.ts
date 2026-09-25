@@ -3,6 +3,7 @@ import { create } from 'zustand';
 
 import { ApiError, apiFetch, type AuthenticatedUser } from '@/lib/api';
 import { toSpanishAuthMessage } from '@/lib/auth-errors';
+import { isSessionUnauthorized } from '@/lib/request-config';
 import { supabase } from '@/lib/supabase';
 
 /** `loading` dura solo hasta que se rehidrata la sesion desde el almacenamiento. */
@@ -123,25 +124,23 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   async loadProfile() {
-    // Se le pide el token a supabase-js en lugar de usar el que trae el store:
-    // getSession renueva el access token si ya vencio, cosa que pasa al abrir
-    // la app despues de un rato en el fondo. Mandar el token cacheado haria que
-    // la API respondiera 401 por un motivo que no es el del usuario.
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token ?? null;
-    if (!token) return;
-
     set({ profile: { status: 'pending' } });
 
     try {
-      const me = await apiFetch<AuthenticatedUser>('/api/v1/me', token);
+      // El Bearer lo pone apiFetch desde la sesion de SecureStore. Un 401 de
+      // sesion ya cerro la sesion local y el guard raiz vuelve al login; no
+      // hace falta pintar un error encima de esa salida.
+      const me = await apiFetch<AuthenticatedUser>('/api/v1/me');
       set({ profile: { status: 'ready', me } });
     } catch (error) {
+      const apiError =
+        error instanceof ApiError ? error : new ApiError(0, 'Ocurrió un error inesperado.');
+      if (isSessionUnauthorized(apiError.status, apiError.message)) return;
+
       set({
         profile: {
           status: 'error',
-          error:
-            error instanceof ApiError ? error : new ApiError(0, 'Ocurrió un error inesperado.'),
+          error: apiError,
         },
       });
     }
