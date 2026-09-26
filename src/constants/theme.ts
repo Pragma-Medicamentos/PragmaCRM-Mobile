@@ -142,3 +142,22 @@ export const StopTypeColors = {
  * no de color, y va en la hoja de estilos del componente.
  */
 export const ExtraBadgeBorderColor = brand.textSecondary;
+
+/**
+ * Violeta del pin de prospecto (PCRM-49).
+ *
+ * Va suelto y no dentro de `StopTypeColors` a proposito: ese objeto esta
+ * indexado por tipo de parada, y un prospecto no es un tipo de parada sino un
+ * destino que todavia no es cliente. Meterlo ahi romperia esa invariante y el
+ * tipado de `StopType`.
+ *
+ * Queda fuera de la escala verde/azul/ambar para que se lea como otra
+ * categoria, no como un cuarto tipo. El gris seria mas literal para "todavia
+ * no es cliente", pero desaparece contra las calles del mapa.
+ *
+ * El pin no consume esta constante -- el color va horneado en el PNG, porque
+ * `GoogleMapsMarker` no tiene prop de tinte (ver scripts/generate-map-pins.py).
+ * Existe para que el dia que haya una leyenda o un badge de prospecto usen
+ * este valor en vez de repetir el hex.
+ */
+export const ProspectPinColor = '#6B3FA0';

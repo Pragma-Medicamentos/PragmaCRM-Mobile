@@ -7,9 +7,10 @@ import { ThemedText } from './themed-text';
 
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import type { DailyRouteStop, StopType } from '@/lib/daily-route';
+import type { DailyRouteStop } from '@/lib/daily-route';
 import type { Coordinates } from '@/lib/distance';
 import { buildGoogleMapsStopLink } from '@/lib/google-maps-link';
+import { stopPinKind, type StopPinKind } from '@/lib/stop-pin';
 
 type Props = {
   stops: DailyRouteStop[];
@@ -98,11 +99,16 @@ export const RouteMap = forwardRef<RouteMapHandle, Props>(function RouteMap(
   const visitaIcon = useImage(require('@/assets/images/mapPins/pin-visita.png'));
   const despachoIcon = useImage(require('@/assets/images/mapPins/pin-despacho.png'));
   const cobroIcon = useImage(require('@/assets/images/mapPins/pin-cobro.png'));
+  const prospectoIcon = useImage(require('@/assets/images/mapPins/pin-prospecto.png'));
 
-  const iconByType: Record<StopType, typeof visitaIcon> = {
+  // Indexado por `StopPinKind`, no por `StopType`: un prospecto no es un tipo
+  // de parada mas, es un destino distinto (PCRM-49). Quien decide cual toca es
+  // `stopPinKind`, que ademas tiene test.
+  const iconByKind: Record<StopPinKind, typeof visitaIcon> = {
     visit: visitaIcon,
     dispatch: despachoIcon,
     collection: cobroIcon,
+    prospect: prospectoIcon,
   };
 
   // Las paradas sin GPS (`location: null`, un caso real -- ver el
@@ -118,12 +124,12 @@ export const RouteMap = forwardRef<RouteMapHandle, Props>(function RouteMap(
   // parada se salta por ese frame en vez de mandarle a expo-maps un marker
   // con `icon: null`.
   const markers = locatedStops
-    .filter((stop) => iconByType[stop.stop_type] !== null)
+    .filter((stop) => iconByKind[stopPinKind(stop)] !== null)
     .map((stop) => ({
       id: stop.id,
       coordinates: toMapCoordinates(stop.location),
       title: stop.name,
-      icon: iconByType[stop.stop_type]!,
+      icon: iconByKind[stopPinKind(stop)]!,
     }));
 
   // `cameraPosition` se congela en el primer render. En Android expo-maps
