@@ -32,10 +32,12 @@ type Props = {
   currentLocation: Coordinates | null;
   /** Se llama al tocar una tarjeta con GPS; las que no tienen quedan inertes. */
   onStopPress?: (stop: DailyRouteStop) => void;
+  /** Se llama desde el boton "Validar visita (GPS)" de la tarjeta. */
+  onValidateStop?: (stop: DailyRouteStop) => void;
 };
 
 export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>, Props>(function StopsSheet(
-  { currentLocation, onStopPress },
+  { currentLocation, onStopPress, onValidateStop },
   ref,
 ) {
   const theme = useTheme();
@@ -153,6 +155,7 @@ export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>, Prop
                 stop={stop}
                 currentLocation={currentLocation}
                 onPress={onStopPress && stop.location ? () => onStopPress(stop) : undefined}
+                onValidatePress={onValidateStop ? () => onValidateStop(stop) : undefined}
               />
             ))
           )}

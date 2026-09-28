@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ProspectPill } from './prospect-pill';
 import { StopBadge } from './stop-badge';
+import { Button } from './ui/button';
 import { StopPill } from './stop-pill';
 import { ThemedText } from './themed-text';
 
@@ -11,6 +12,7 @@ import { formatDistance, haversineMeters, type Coordinates } from '@/lib/distanc
 import type { DailyRouteStop } from '@/lib/daily-route';
 import { formatStopTime } from '@/lib/format-time';
 import { isProspectStop } from '@/lib/stop-pin';
+import { isVisitable } from '@/lib/visit-gate';
 
 type Props = {
   stop: DailyRouteStop;
@@ -26,6 +28,12 @@ type Props = {
    * lo pasa para paradas sin GPS, que no tienen pin donde centrar el mapa).
    */
   onPress?: () => void;
+  /**
+   * Abre la hoja de validacion por GPS. El boton solo aparece cuando la
+   * parada admite confirmarse (ver `isVisitable`): sin handler no se dibuja,
+   * igual que `onPress`.
+   */
+  onValidatePress?: () => void;
 };
 
 /**
@@ -55,10 +63,11 @@ function buildSubtitle(stop: DailyRouteStop, currentLocation: Coordinates | null
 }
 
 /** Tarjeta de una parada en la lista de la ruta diaria. */
-export function StopCard({ stop, currentLocation, onPress }: Props) {
+export function StopCard({ stop, currentLocation, onPress, onValidatePress }: Props) {
   const theme = useTheme();
   const isCompleted = stop.completed_at !== null;
   const isProspect = isProspectStop(stop);
+  const canValidate = onValidatePress !== undefined && isVisitable(stop);
   const subtitle = buildSubtitle(stop, currentLocation);
 
   return (
@@ -97,6 +106,16 @@ export function StopCard({ stop, currentLocation, onPress }: Props) {
       <ThemedText type="small" themeColor="textSecondary">
         {subtitle}
       </ThemedText>
+
+      {/* Dentro del Pressable de la tarjeta, que es un boton: anidar otro
+          boton es legal en RN (el hijo gana el toque) y evita partir la
+          tarjeta en dos. `View` intermedio para que el boton no se estire a
+          todo el ancho como haria `alignSelf: 'stretch'` del Button. */}
+      {canValidate && (
+        <View style={styles.actionRow}>
+          <Button title="Validar visita (GPS)" onPress={onValidatePress} />
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -126,5 +145,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  actionRow: {
+    paddingTop: Spacing.one,
   },
 });
