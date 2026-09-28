@@ -15,3 +15,19 @@ export const STOP_TYPE_LABELS: Record<StopType, string> = {
   dispatch: 'Despacho',
   collection: 'Cobro',
 };
+
+/**
+ * Emoji de cada tipo de parada, para el chip que acompaña al pin seleccionado
+ * en el mapa.
+ *
+ * Son emoji y no iconos vectoriales porque los pinta la fuente del sistema:
+ * cero assets que generar, cero densidades que mantener. La contrapartida es
+ * que el dibujo exacto lo decide la plataforma, asi que el emoji nunca puede
+ * ser el unico portador del dato -- de ahi que el chip lleve siempre
+ * `accessibilityLabel` con el texto de `STOP_TYPE_LABELS`.
+ */
+export const STOP_TYPE_EMOJI: Record<StopType, string> = {
+  visit: '🏪',
+  dispatch: '🚚',
+  collection: '💵',
+};

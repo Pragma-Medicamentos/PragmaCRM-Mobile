@@ -3,6 +3,8 @@ import { AppleMaps, GoogleMaps, type CameraMoveEvent } from 'expo-maps';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 
+import { ProspectPill } from './prospect-pill';
+import { StopTypeIcon } from './stop-type-icon';
 import { ThemedText } from './themed-text';
 
 import { Spacing } from '@/constants/theme';
@@ -10,7 +12,7 @@ import { useTheme } from '@/hooks/use-theme';
 import type { DailyRouteStop } from '@/lib/daily-route';
 import type { Coordinates } from '@/lib/distance';
 import { buildGoogleMapsStopLink } from '@/lib/google-maps-link';
-import { stopPinKind, type StopPinKind } from '@/lib/stop-pin';
+import { isProspectStop, stopPinKind, type StopPinKind } from '@/lib/stop-pin';
 
 type Props = {
   stops: DailyRouteStop[];
@@ -260,6 +262,21 @@ export const RouteMap = forwardRef<RouteMapHandle, Props>(function RouteMap(
         // Solo abre esta parada, no la ruta del dia: para eso esta el boton
         // "Abrir ruta en maps" de la pantalla.
         <View pointerEvents="box-none" style={styles.pillAnchor}>
+          {/* De izquierda a derecha, de lo mas descriptivo a la accion: que
+              clase de parada es, si el destino todavia no es cliente, y recien
+              despues el boton. Los dos primeros van con `pointerEvents="none"`
+              porque son texto, no controles: sin eso se comerian los toques
+              sobre el mapa que caen encima. */}
+          <View pointerEvents="none">
+            <StopTypeIcon stopType={selectedStop.stop_type} />
+          </View>
+
+          {isProspectStop(selectedStop) && (
+            <View pointerEvents="none">
+              <ProspectPill />
+            </View>
+          )}
+
           <Pressable
             onPress={() => void Linking.openURL(buildGoogleMapsStopLink(selectedStop.location))}
             accessibilityRole="button"
@@ -291,7 +308,10 @@ const styles = StyleSheet.create({
     right: 0,
     top: '50%',
     marginTop: Spacing.two + (Platform.OS === 'ios' ? PIN_HEIGHT / 2 : 0),
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: Spacing.two,
   },
   pill: {
     borderRadius: Spacing.four,
