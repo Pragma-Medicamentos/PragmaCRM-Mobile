@@ -16,9 +16,8 @@ import { readPreciseLocation } from '@/hooks/use-device-location';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import type { DailyRouteStop } from '@/lib/daily-route';
-import type { Coordinates } from '@/lib/distance';
 import { confirmVisit } from '@/lib/visit';
-import { visitGate, visitGateMessage } from '@/lib/visit-gate';
+import { visitGate, visitGateMessage, type LocationRead } from '@/lib/visit-gate';
 
 /**
  * Atajos de nota del wireframe (pantalla 6). Escriben en el campo de texto en
@@ -55,7 +54,7 @@ export const ConfirmVisitSheet = forwardRef<ConfirmVisitSheetHandle, Props>(
   function ConfirmVisitSheet({ stop, onConfirmed }, ref) {
     const theme = useTheme();
     const [reading, setReading] = useState(false);
-    const [precise, setPrecise] = useState<Coordinates | null>(null);
+    const [read, setRead] = useState<LocationRead | null>(null);
     const [notes, setNotes] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -65,7 +64,7 @@ export const ConfirmVisitSheet = forwardRef<ConfirmVisitSheetHandle, Props>(
     const takeReading = useCallback(async () => {
       setReading(true);
       setErrorMessage(null);
-      setPrecise(await readPreciseLocation());
+      setRead(await readPreciseLocation());
       setReading(false);
     }, []);
 
@@ -76,7 +75,7 @@ export const ConfirmVisitSheet = forwardRef<ConfirmVisitSheetHandle, Props>(
       (index: number) => {
         if (index < 0) return;
         setNotes('');
-        setPrecise(null);
+        setRead(null);
         setErrorMessage(null);
         void takeReading();
       },
@@ -92,11 +91,13 @@ export const ConfirmVisitSheet = forwardRef<ConfirmVisitSheetHandle, Props>(
 
     // `stop.location` no es null: `isVisitable` ya lo garantizo antes de que
     // esta hoja se presente. El fallback evita el non-null assertion.
-    const gate = stop?.location ? visitGate(stop.location, precise) : { status: 'no-fix' as const };
+    const gate = stop?.location
+      ? visitGate(stop.location, read)
+      : { status: 'unavailable' as const };
     const canConfirm = gate.status === 'ready' && !reading && !submitting;
 
     async function handleConfirm() {
-      if (!stop?.location || !precise) return;
+      if (!stop?.location || read?.status !== 'ok') return;
 
       setSubmitting(true);
       setErrorMessage(null);
@@ -104,7 +105,7 @@ export const ConfirmVisitSheet = forwardRef<ConfirmVisitSheetHandle, Props>(
       try {
         await confirmVisit({
           scheduledVisitId: stop.id,
-          location: precise,
+          location: read.location,
           notes,
         });
         onConfirmed();

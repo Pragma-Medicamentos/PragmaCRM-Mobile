@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { Coordinates } from './distance.ts';
+import type { LocationRead } from './visit-gate.ts';
 import {
   GPS_RADIUS_METERS,
   isVisitable,
@@ -19,6 +20,11 @@ const CLIENTE: Coordinates = { lat: 13.7012, lng: -89.2412 };
  */
 function metrosAlNorte(from: Coordinates, metros: number): Coordinates {
   return { lat: from.lat + metros / 111_320, lng: from.lng };
+}
+
+/** Una lectura buena en `location`, que es el caso normal. */
+function lectura(location: Coordinates, accuracyMeters: number | null = 5): LocationRead {
+  return { status: 'ok', location, accuracyMeters };
 }
 
 const CLIENTE_PENDIENTE = {
@@ -56,13 +62,12 @@ test('un cliente sin pin no admite validacion', () => {
 });
 
 test('parado encima del cliente esta dentro del rango', () => {
-  const gate = visitGate(CLIENTE, CLIENTE);
-  assert.equal(gate.status, 'ready');
+  assert.equal(visitGate(CLIENTE, lectura(CLIENTE)).status, 'ready');
 });
 
 test('a 25m esta dentro y a 200m esta fuera', () => {
-  assert.equal(visitGate(CLIENTE, metrosAlNorte(CLIENTE, 25)).status, 'ready');
-  assert.equal(visitGate(CLIENTE, metrosAlNorte(CLIENTE, 200)).status, 'too-far');
+  assert.equal(visitGate(CLIENTE, lectura(metrosAlNorte(CLIENTE, 25))).status, 'ready');
+  assert.equal(visitGate(CLIENTE, lectura(metrosAlNorte(CLIENTE, 200))).status, 'too-far');
 });
 
 test('el radio exacto cuenta como dentro', () => {
@@ -81,22 +86,51 @@ test('el radio exacto cuenta como dentro', () => {
 test('sin lectura del dispositivo la compuerta no adivina', () => {
   // Nunca "ready" por defecto: sin GPS no se puede afirmar que el vendedor
   // esta en el lugar, que es lo unico que la visita pretende demostrar.
-  assert.equal(visitGate(CLIENTE, null).status, 'no-fix');
+  assert.equal(visitGate(CLIENTE, null).status, 'unavailable');
+});
+
+test('distingue permiso negado de falta de señal', () => {
+  // No son lo mismo y piden acciones distintas del vendedor: una se arregla
+  // dando el permiso, la otra saliendo a cielo abierto. Cuando esto era un
+  // solo estado, la app le decia que revisara los permisos aunque los
+  // tuviera concedidos.
+  assert.equal(visitGate(CLIENTE, { status: 'denied' }).status, 'denied');
+  assert.equal(visitGate(CLIENTE, { status: 'unavailable' }).status, 'unavailable');
+
+  assert.match(visitGateMessage({ status: 'denied' }), /permiso de ubicación/);
+  assert.match(visitGateMessage({ status: 'unavailable' }), /No se pudo obtener/);
+});
+
+test('avisa cuando la precision no alcanza para decidir el radio', () => {
+  // Una lectura con ±150m no puede sostener "estas dentro de 80m". El
+  // veredicto sigue siendo "ready" -- bloquear es otra decision -- pero el
+  // vendedor ve la incertidumbre en vez de un tilde que finge certeza.
+  const flojo = visitGateMessage({ status: 'ready', distanceMeters: 25, accuracyMeters: 150 });
+  assert.match(flojo, /precisión ±/);
+
+  const bueno = visitGateMessage({ status: 'ready', distanceMeters: 25, accuracyMeters: 5 });
+  assert.doesNotMatch(bueno, /precisión ±/);
 });
 
 test('cada estado explica el motivo al vendedor', () => {
   // CA2 de HU-06 no pide solo rechazar: pide notificar el motivo.
-  assert.match(visitGateMessage({ status: 'ready', distanceMeters: 25 }), /Dentro del rango/);
+  assert.match(
+    visitGateMessage({ status: 'ready', distanceMeters: 25, accuracyMeters: 5 }),
+    /Dentro del rango/,
+  );
   assert.match(
     visitGateMessage({ status: 'too-far', distanceMeters: 200 }),
     /Acércate al cliente/,
   );
-  assert.match(visitGateMessage({ status: 'no-fix' }), /Sin señal GPS/);
+  assert.match(visitGateMessage({ status: 'unavailable' }), /ubicación/);
 });
 
 test('el motivo incluye la distancia, que es lo accionable', () => {
   // "Acércate" sin decir cuanto no le sirve al vendedor para decidir si
   // caminar o si el pin del cliente esta mal cargado.
   assert.match(visitGateMessage({ status: 'too-far', distanceMeters: 200 }), /200m/);
-  assert.match(visitGateMessage({ status: 'ready', distanceMeters: 25 }), /25m/);
+  assert.match(
+    visitGateMessage({ status: 'ready', distanceMeters: 25, accuracyMeters: 5 }),
+    /25m/,
+  );
 });

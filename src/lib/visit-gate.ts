@@ -44,16 +44,32 @@ export function isVisitable(
 }
 
 /**
+ * Lo que devuelve pedirle la ubicacion al dispositivo.
+ *
+ * El tipo vive aca, en lib, y no en el hook, para que la compuerta se pueda
+ * probar sin importar expo-location. El hook lo importa de aca.
+ *
+ * Los tres casos estan separados porque piden acciones distintas del
+ * vendedor: dar el permiso, moverse a cielo abierto, o nada.
+ */
+export type LocationRead =
+  | { status: 'ok'; location: Coordinates; accuracyMeters: number | null }
+  | { status: 'denied' }
+  | { status: 'unavailable' };
+
+/**
  * Resultado de comparar la lectura del dispositivo contra el pin de la parada.
  *
- * Solo tres estados porque `isVisitable` ya descarto todo lo demas: quien
- * llega aca ya sabe que la parada es un cliente pendiente con pin.
+ * `isVisitable` ya descarto todo lo que no depende de la distancia, asi que
+ * quien llega aca ya sabe que la parada es un cliente pendiente con pin.
  */
 export type VisitGate =
-  | { status: 'ready'; distanceMeters: number }
+  | { status: 'ready'; distanceMeters: number; accuracyMeters: number | null }
   | { status: 'too-far'; distanceMeters: number }
-  /** Todavia no hay lectura de GPS, o el vendedor nego el permiso. */
-  | { status: 'no-fix' };
+  /** El vendedor nego el permiso de ubicacion. */
+  | { status: 'denied' }
+  /** Hay permiso pero no se consiguio ninguna lectura. */
+  | { status: 'unavailable' };
 
 /**
  * La regla del radio, sola y sobre metros.
@@ -82,16 +98,17 @@ export function isWithinRadius(distanceMeters: number): boolean {
  * guarda `distance_meters` calculado por el, que es el dato autoritativo, y el
  * panel puede ver la inconsistencia.
  */
-export function visitGate(
-  stopLocation: Coordinates,
-  deviceLocation: Coordinates | null,
-): VisitGate {
-  if (deviceLocation === null) return { status: 'no-fix' };
+export function visitGate(stopLocation: Coordinates, read: LocationRead | null): VisitGate {
+  // null = todavia leyendo. Nunca "ready" por omision: sin lectura no se
+  // puede afirmar que el vendedor esta en el lugar, que es lo unico que la
+  // visita pretende demostrar.
+  if (read === null) return { status: 'unavailable' };
+  if (read.status !== 'ok') return { status: read.status };
 
-  const distanceMeters = haversineMeters(deviceLocation, stopLocation);
+  const distanceMeters = haversineMeters(read.location, stopLocation);
 
   return isWithinRadius(distanceMeters)
-    ? { status: 'ready', distanceMeters }
+    ? { status: 'ready', distanceMeters, accuracyMeters: read.accuracyMeters }
     : { status: 'too-far', distanceMeters };
 }
 
@@ -104,11 +121,20 @@ export function visitGate(
  */
 export function visitGateMessage(gate: VisitGate): string {
   switch (gate.status) {
-    case 'ready':
-      return `Dentro del rango · a ${formatDistance(gate.distanceMeters)} del cliente`;
+    case 'ready': {
+      const base = `Dentro del rango · a ${formatDistance(gate.distanceMeters)} del cliente`;
+      // La precision se muestra cuando es peor que el propio radio: ahi la
+      // lectura no alcanza para afirmar el veredicto y el vendedor tiene
+      // derecho a saberlo en vez de ver un tilde que finge certeza.
+      return gate.accuracyMeters !== null && gate.accuracyMeters > GPS_RADIUS_METERS
+        ? `${base} · precisión ±${formatDistance(gate.accuracyMeters)}`
+        : base;
+    }
     case 'too-far':
       return `Acércate al cliente para validar · a ${formatDistance(gate.distanceMeters)}`;
-    case 'no-fix':
-      return 'Sin señal GPS todavía. Revisá los permisos de ubicación.';
+    case 'denied':
+      return 'Sin permiso de ubicación. Habilitalo para poder validar la visita.';
+    case 'unavailable':
+      return 'No se pudo obtener tu ubicación. Salí a cielo abierto y probá de nuevo.';
   }
 }
