@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { ProspectPill } from './prospect-pill';
 import { StopBadge } from './stop-badge';
 import { StopPill } from './stop-pill';
 import { ThemedText } from './themed-text';
@@ -9,6 +10,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { formatDistance, haversineMeters, type Coordinates } from '@/lib/distance';
 import type { DailyRouteStop } from '@/lib/daily-route';
 import { formatStopTime } from '@/lib/format-time';
+import { isProspectStop } from '@/lib/stop-pin';
 
 type Props = {
   stop: DailyRouteStop;
@@ -56,6 +58,7 @@ function buildSubtitle(stop: DailyRouteStop, currentLocation: Coordinates | null
 export function StopCard({ stop, currentLocation, onPress }: Props) {
   const theme = useTheme();
   const isCompleted = stop.completed_at !== null;
+  const isProspect = isProspectStop(stop);
   const subtitle = buildSubtitle(stop, currentLocation);
 
   return (
@@ -79,9 +82,15 @@ export function StopCard({ stop, currentLocation, onPress }: Props) {
         <StopPill stopType={stop.stop_type} />
       </View>
 
-      {stop.is_extra && (
+      {/* "Prospecto" va primero porque responde antes: "Extra" matiza como
+          entro esta parada a la ruta, pero un prospecto es otra cosa -- un
+          destino que todavia no es cliente. En la practica casi siempre se
+          ven juntas (los prospectos llegan con `is_extra: true`), asi que la
+          condicion de la fila mira las dos y no asume esa correlacion. */}
+      {(isProspect || stop.is_extra) && (
         <View style={styles.badgeRow}>
-          <StopBadge />
+          {isProspect && <ProspectPill />}
+          {stop.is_extra && <StopBadge />}
         </View>
       )}
 
@@ -115,5 +124,7 @@ const styles = StyleSheet.create({
   },
   badgeRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
 });

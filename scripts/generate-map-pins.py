@@ -65,10 +65,17 @@ PIN_TYPES = {
     'pin-cobro': {'fill': '#D98C00', 'border': '#8A5800', 'style': 'solid'},
     # PCRM-49. Un prospecto no es un tipo de parada mas: es un destino que
     # todavia no es cliente, y el vendedor tiene que poder distinguirlo de un
-    # vistazo. Por eso sale de la escala verde/azul/ambar (violeta) y va hueco
-    # con el contorno punteado, el mismo lenguaje que el badge "Extra" de la
-    # tarjeta usa para "esto no es parte de lo planificado".
-    'pin-prospecto': {'fill': '#FFFFFF', 'border': '#6B3FA0', 'style': 'dashed'},
+    # vistazo. Lo que lo marca son dos cosas: el amarillo, fuera de la escala
+    # verde/azul/ambar, y el contorno punteado -- el mismo lenguaje que el
+    # badge "Extra" de la tarjeta usa para "esto no es parte de lo planificado".
+    #
+    # El cuerpo va relleno y no hueco: probado sobre fondo de mapa, un pin de
+    # relleno blanco con guiones amarillos se deshace justo encima de una
+    # calle (blanco sobre blanco, y el amarillo no llega a 1.5:1 contra el
+    # blanco), que es precisamente donde caen las paradas. Con el relleno
+    # amarillo el contraste lo aporta el cuerpo y los guiones solo dibujan el
+    # borde.
+    'pin-prospecto': {'fill': '#FFC400', 'border': '#A67A00', 'style': 'dashed'},
 }
 
 # Largo de cada guion y del hueco entre guiones, en puntos @1x, medidos sobre

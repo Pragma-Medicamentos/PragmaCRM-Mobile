@@ -258,7 +258,7 @@ export const RouteMap = forwardRef<RouteMapHandle, Props>(function RouteMap(
 
       {selectedStop && isCenteredOnSelected && (
         // Solo abre esta parada, no la ruta del dia: para eso esta el boton
-        // "Abrir en Google Maps" de la pantalla.
+        // "Abrir ruta en maps" de la pantalla.
         <View pointerEvents="box-none" style={styles.pillAnchor}>
           <Pressable
             onPress={() => void Linking.openURL(buildGoogleMapsStopLink(selectedStop.location))}

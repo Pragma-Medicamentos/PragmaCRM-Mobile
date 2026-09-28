@@ -93,7 +93,7 @@ export default function HomeScreen() {
                 </View>
               )}
               <Button
-                title="Abrir en Google Maps ↗"
+                title="Abrir ruta en maps ↗"
                 variant="outline"
                 onPress={() => void Linking.openURL(googleMapsLink.url)}
               />

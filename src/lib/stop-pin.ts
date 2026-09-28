@@ -9,6 +9,19 @@ import type { StopType, TargetKind } from './daily-route';
 export type StopPinKind = StopType | 'prospect';
 
 /**
+ * Si el destino de la parada es un prospecto y no un cliente.
+ *
+ * Existe como funcion, y no como un `=== 'prospect'` suelto en cada
+ * componente, porque hoy son tres los lugares que tienen que coincidir: el
+ * pin del mapa, la pildora del mapa y la pildora de la tarjeta. Si uno dice
+ * que si y otro que no, el vendedor ve un pin de prospecto sin nombre o un
+ * nombre sin pin.
+ */
+export function isProspectStop(stop: { target_kind: TargetKind }): boolean {
+  return stop.target_kind === 'prospect';
+}
+
+/**
  * El destino gana sobre el tipo de parada.
  *
  * Un prospecto trae `stop_type` igual que cualquier otra parada (el admin lo
@@ -17,5 +30,5 @@ export type StopPinKind = StopType | 'prospect';
  * cliente -- que es exactamente lo que PCRM-49 viene a resolver.
  */
 export function stopPinKind(stop: { stop_type: StopType; target_kind: TargetKind }): StopPinKind {
-  return stop.target_kind === 'prospect' ? 'prospect' : stop.stop_type;
+  return isProspectStop(stop) ? 'prospect' : stop.stop_type;
 }

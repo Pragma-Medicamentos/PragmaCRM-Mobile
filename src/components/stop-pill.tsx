@@ -2,32 +2,18 @@ import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from './themed-text';
 
-import { Spacing, StopTypeColors } from '@/constants/theme';
+import { Spacing, StopTypeColorsByType } from '@/constants/theme';
 import type { StopType } from '@/lib/daily-route';
+import { STOP_TYPE_LABELS } from '@/lib/stop-type';
 
 type Props = {
   stopType: StopType;
 };
 
-/**
- * Une la etiqueta en español y los colores de `StopTypeColors` en un solo
- * lugar: `StopType` llega del backend en inglés (CLAUDE.md 5.2 de la API),
- * pero las claves de `StopTypeColors` estan en español porque copian el
- * texto del pill. Sin este mapa habria que repetir la traduccion donde sea
- * que se necesite el color.
- */
-const STOP_TYPE_CONFIG: Record<
-  StopType,
-  { label: string; colors: (typeof StopTypeColors)[keyof typeof StopTypeColors] }
-> = {
-  visit: { label: 'Visita', colors: StopTypeColors.visita },
-  dispatch: { label: 'Despacho', colors: StopTypeColors.despacho },
-  collection: { label: 'Cobro', colors: StopTypeColors.cobro },
-};
-
 /** Pildora de tipo de parada (Visita / Despacho / Cobro) de la tarjeta de ruta. */
 export function StopPill({ stopType }: Props) {
-  const { label, colors } = STOP_TYPE_CONFIG[stopType];
+  const label = STOP_TYPE_LABELS[stopType];
+  const colors = StopTypeColorsByType[stopType];
 
   return (
     <View
