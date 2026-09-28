@@ -150,7 +150,14 @@ export const ConfirmVisitSheet = forwardRef<ConfirmVisitSheetHandle, Props>(
               styles.gpsRow,
               {
                 backgroundColor: theme.backgroundElement,
-                borderColor: gate.status === 'ready' ? theme.tint : theme.danger,
+                // Mientras lee, el borde es neutro y no rojo: todavia no hay
+                // veredicto, y pintarlo de rojo le dice al vendedor que algo
+                // fallo cuando en realidad esta trabajando.
+                borderColor: reading
+                  ? theme.backgroundSelected
+                  : gate.status === 'ready'
+                    ? theme.tint
+                    : theme.danger,
               },
             ]}>
             {reading ? (
