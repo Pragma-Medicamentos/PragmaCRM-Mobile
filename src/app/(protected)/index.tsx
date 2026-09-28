@@ -4,6 +4,10 @@ import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppMenu } from '@/components/app-menu';
+import {
+  ConfirmVisitSheet,
+  type ConfirmVisitSheetHandle,
+} from '@/components/confirm-visit-sheet';
 import { RouteMap, type RouteMapHandle } from '@/components/route-map';
 import { StopsSheet } from '@/components/stops-sheet';
 import { ThemedText } from '@/components/themed-text';
@@ -30,6 +34,10 @@ export default function HomeScreen() {
   // ver el comentario largo mas abajo, junto al boton que la abre.
   const stopsSheetRef = useRef<ComponentRef<typeof BottomSheetModal>>(null);
   const routeMapRef = useRef<RouteMapHandle>(null);
+  const confirmSheetRef = useRef<ConfirmVisitSheetHandle>(null);
+  // La parada que la hoja de validacion esta confirmando. Vive aca y no dentro
+  // de la hoja porque quien la abre es la tarjeta, que esta en la otra hoja.
+  const [stopToValidate, setStopToValidate] = useState<DailyRouteStop | null>(null);
   // Un solo watcher. La hoja de paradas recibe esta misma lectura.
   const { location } = useDeviceLocation();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -135,6 +143,28 @@ export default function HomeScreen() {
         onStopPress={(stop) => {
           stopsSheetRef.current?.dismiss();
           routeMapRef.current?.focusStop(stop.id);
+        }}
+        onValidateStop={(stop) => {
+          setStopToValidate(stop);
+          confirmSheetRef.current?.present();
+        }}
+      />
+
+      {/*
+        Se apila sobre la hoja de paradas en vez de reemplazarla: al cerrar,
+        el vendedor vuelve a la lista -- que es donde estaba -- y ve la parada
+        recien confirmada ya en gris.
+      */}
+      <ConfirmVisitSheet
+        ref={confirmSheetRef}
+        stop={stopToValidate}
+        onConfirmed={() => {
+          confirmSheetRef.current?.dismiss();
+          setStopToValidate(null);
+          // El backend llena `completed_at` de la ruta al confirmar (fix
+          // PCRM-147), asi que refrescar alcanza: no hace falta tocar el
+          // estado local ni adivinar como quedo la parada.
+          void loadRoute();
         }}
       />
 

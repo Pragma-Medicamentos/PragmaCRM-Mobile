@@ -114,3 +114,48 @@ export function useDeviceLocation(): DeviceLocationState {
 
   return state;
 }
+
+/**
+ * Lectura puntual de alta precision, para el momento de confirmar una visita.
+ *
+ * El watch de arriba usa `Accuracy.Balanced` (~100 m) y esta bien asi para lo
+ * que hace: mostrar "a 12.2km" en la tarjeta. Pero el radio de validacion son
+ * 80 m, o sea que esa lectura es mas gruesa que la decision que tendria que
+ * tomar -- un vendedor parado en la puerta puede leerse a 150 m, y uno a 200 m
+ * puede leerse adentro. La compuerta seria ruido, no verificacion.
+ *
+ * Por eso aca se pide `Accuracy.High` (~10 m) una sola vez, en vez de subirle
+ * la precision al watch: el watch corre todo el dia y subirlo costaria bateria
+ * durante horas para un dato que solo importa en el instante del toque.
+ *
+ * Devuelve null si el permiso no esta concedido o si la lectura falla (GPS
+ * apagado, sin fix bajo techo). Quien llama muestra el motivo; nunca se asume
+ * una posicion.
+ */
+export async function readPreciseLocation(): Promise<Coordinates | null> {
+  try {
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      const requested = await Location.requestForegroundPermissionsAsync();
+      if (requested.status !== 'granted') {
+        publish({ permissionDenied: true });
+        return null;
+      }
+    }
+
+    const position = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.High,
+    });
+
+    const location = { lat: position.coords.latitude, lng: position.coords.longitude };
+
+    // La lectura buena tambien sirve para la distancia de las tarjetas: seria
+    // raro que la hoja diga "a 25m" y la tarjeta de atras siga en el valor
+    // viejo del watch.
+    publish({ location, permissionDenied: false });
+
+    return location;
+  } catch {
+    return null;
+  }
+}
