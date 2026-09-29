@@ -26,7 +26,7 @@ export function Button({
   // Un boton que ya esta trabajando no debe aceptar un segundo toque.
   const isDisabled = disabled || loading;
 
-  // El outline (boton "Abrir en Google Maps" sobre el mapa) necesita
+  // El outline (boton "Abrir ruta en maps" sobre el mapa) necesita
   // contraste propio incluso sobre un fondo variable como el del mapa: fondo
   // solido de la app + borde del color de marca, en vez de transparente.
   const backgroundColor = isPrimary

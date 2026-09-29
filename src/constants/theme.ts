@@ -6,6 +6,8 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
+import type { StopType } from '@/lib/daily-route';
+
 /**
  * Paleta de Farmacia Pragma. Los cuatro colores de marca salen de
  * assets/Logos/palette.png; los tres grises son derivados neutros que la
@@ -133,6 +135,21 @@ export const StopTypeColors = {
 } as const;
 
 /**
+ * El mismo objeto de arriba, indexado por `StopType` (ingles, como llega del
+ * backend) en vez de por el texto del pill.
+ *
+ * Existe para que ningun componente tenga que repetir el mapa
+ * ingles -> español para llegar al color: antes lo hacia `stop-pill.tsx` por
+ * su cuenta, y al aparecer el segundo consumidor (el chip de tipo del mapa)
+ * esa traduccion habria quedado duplicada.
+ */
+export const StopTypeColorsByType: Record<StopType, (typeof StopTypeColors)[keyof typeof StopTypeColors]> = {
+  visit: StopTypeColors.visita,
+  dispatch: StopTypeColors.despacho,
+  collection: StopTypeColors.cobro,
+};
+
+/**
  * El badge "Extra" (parada agregada fuera de la planificacion) no es un tipo
  * de parada mas, asi que no suma una cuarta entrada a `StopTypeColors`: solo
  * necesita el borde punteado sobre `textSecondary`. Se expone aca para que
@@ -142,3 +159,32 @@ export const StopTypeColors = {
  * no de color, y va en la hoja de estilos del componente.
  */
 export const ExtraBadgeBorderColor = brand.textSecondary;
+
+/**
+ * Colores del prospecto (PCRM-49): el pin del mapa y la pildora "Prospecto"
+ * que lo nombra, tanto en el mapa como en la tarjeta de la lista.
+ *
+ * Van sueltos y no dentro de `StopTypeColors` a proposito: ese objeto esta
+ * indexado por tipo de parada, y un prospecto no es un tipo de parada sino un
+ * destino que todavia no es cliente. Meterlo ahi romperia esa invariante y el
+ * tipado de `StopType`.
+ *
+ * `fill` queda fuera de la escala verde/azul/ambar para que se lea como otra
+ * categoria, no como un cuarto tipo -- pero es vecino del ambar de Cobro en
+ * tono, asi que el color solo no alcanza para separarlos. Lo que termina de
+ * hacerlo es el contorno punteado, que ambos (pin y pildora) comparten.
+ *
+ * `text` es el negro del tema y no `tintText`: el blanco sobre este amarillo
+ * da 1.6:1 y es ilegible.
+ *
+ * El pin del mapa no consume estas constantes -- ese color va horneado en el
+ * PNG, porque `GoogleMapsMarker` no tiene prop de tinte (ver
+ * scripts/generate-map-pins.py). Tienen que coincidir con
+ * `PIN_TYPES['pin-prospecto']` de ese script: si alguien cambia uno sin el
+ * otro, la pildora deja de corresponderse con el pin que esta nombrando.
+ */
+export const ProspectColors = {
+  fill: '#FFC400',
+  border: '#A67A00',
+  text: brand.text,
+} as const;

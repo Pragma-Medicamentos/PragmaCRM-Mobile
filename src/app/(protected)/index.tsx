@@ -1,10 +1,14 @@
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppMenu } from '@/components/app-menu';
-import { RouteMap } from '@/components/route-map';
+import {
+  ConfirmVisitSheet,
+  type ConfirmVisitSheetHandle,
+} from '@/components/confirm-visit-sheet';
+import { RouteMap, type RouteMapHandle } from '@/components/route-map';
 import { StopsSheet } from '@/components/stops-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -12,9 +16,14 @@ import { Button } from '@/components/ui/button';
 import { Spacing } from '@/constants/theme';
 import { useDeviceLocation } from '@/hooks/use-device-location';
 import { useTheme } from '@/hooks/use-theme';
+import type { DailyRouteStop } from '@/lib/daily-route';
 import { buildGoogleMapsLink } from '@/lib/google-maps-link';
 import { useAuthStore } from '@/stores/auth-store';
 import { useRouteStore } from '@/stores/route-store';
+
+// Referencia estable para cuando la ruta no esta lista: un `[]` literal seria
+// un arreglo nuevo en cada render y romperia el useMemo del link de Maps.
+const NO_STOPS: DailyRouteStop[] = [];
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -24,11 +33,12 @@ export default function HomeScreen() {
   // La hoja de paradas vive como componente (`stops-sheet.tsx`), no como ruta:
   // ver el comentario largo mas abajo, junto al boton que la abre.
   const stopsSheetRef = useRef<ComponentRef<typeof BottomSheetModal>>(null);
-  // R12: el circuito de distancia se cierra aca -- esta pantalla obtiene la
-  // ubicacion del dispositivo y la pasa al mapa (para el punto azul) y a
-  // stops.tsx la obtiene de nuevo por su cuenta para pasarsela a StopCard
-  // (ver el comentario de useDeviceLocation sobre por que cada pantalla
-  // abre su propia suscripcion en vez de compartir una global).
+  const routeMapRef = useRef<RouteMapHandle>(null);
+  const confirmSheetRef = useRef<ConfirmVisitSheetHandle>(null);
+  // La parada que la hoja de validacion esta confirmando. Vive aca y no dentro
+  // de la hoja porque quien la abre es la tarjeta, que esta en la otra hoja.
+  const [stopToValidate, setStopToValidate] = useState<DailyRouteStop | null>(null);
+  // Un solo watcher. La hoja de paradas recibe esta misma lectura.
   const { location } = useDeviceLocation();
   const [menuVisible, setMenuVisible] = useState(false);
 
@@ -42,11 +52,16 @@ export default function HomeScreen() {
     if (route.status === 'idle') void loadRoute();
   }, [route.status, loadRoute]);
 
-  const stops = route.status === 'ready' ? route.route.stops : [];
+  const stops = route.status === 'ready' ? route.route.stops : NO_STOPS;
   const stopCount = route.status === 'ready' ? stops.length : null;
-  // null cuando ninguna parada tiene GPS todavia (o la ruta no cargo) -- sin
-  // nada que enlazar, el boton de Google Maps no tiene sentido y se esconde.
-  const googleMapsLink = buildGoogleMapsLink(stops);
+  // null cuando no queda ninguna parada pendiente con GPS (ruta sin cargar,
+  // sin GPS, o todas visitadas) -- sin nada que enlazar, el boton de Google
+  // Maps no tiene sentido y se esconde. Depende de `location` porque el orden
+  // del link es por cercania al vendedor.
+  const googleMapsLink = useMemo(
+    () => buildGoogleMapsLink(stops, location),
+    [stops, location],
+  );
 
   return (
     <ThemedView style={styles.container}>
@@ -70,14 +85,25 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.mapContainer}>
-          <RouteMap stops={stops} currentLocation={location} />
+          <RouteMap ref={routeMapRef} stops={stops} currentLocation={location} />
 
           {googleMapsLink && (
             <View style={styles.mapsButtonContainer}>
+              {/*
+                La URL API de Maps no acepta mas de 10 paradas: el resto entra
+                solo a medida que se marcan visitas y se vuelve a abrir el link.
+              */}
+              {googleMapsLink.included < googleMapsLink.pending && (
+                <View style={[styles.mapsCaption, { backgroundColor: theme.backgroundElement }]}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Próximas {googleMapsLink.included} de {googleMapsLink.pending} paradas
+                  </ThemedText>
+                </View>
+              )}
               <Button
-                title="Abrir en Google Maps ↗"
+                title="Abrir ruta en maps ↗"
                 variant="outline"
-                onPress={() => void Linking.openURL(googleMapsLink)}
+                onPress={() => void Linking.openURL(googleMapsLink.url)}
               />
             </View>
           )}
@@ -106,7 +132,41 @@ export default function HomeScreen() {
         </View>
       </SafeAreaView>
 
-      <StopsSheet ref={stopsSheetRef} />
+      {/*
+        Tocar una tarjeta cierra la hoja, centra el mapa en esa parada y abre
+        la etiqueta con su nombre: con la hoja al 68% el pin quedaria tapado
+        si solo se moviera la camara.
+      */}
+      <StopsSheet
+        ref={stopsSheetRef}
+        currentLocation={location}
+        onStopPress={(stop) => {
+          stopsSheetRef.current?.dismiss();
+          routeMapRef.current?.focusStop(stop.id);
+        }}
+        onValidateStop={(stop) => {
+          setStopToValidate(stop);
+          confirmSheetRef.current?.present();
+        }}
+      />
+
+      {/*
+        Se apila sobre la hoja de paradas en vez de reemplazarla: al cerrar,
+        el vendedor vuelve a la lista -- que es donde estaba -- y ve la parada
+        recien confirmada ya en gris.
+      */}
+      <ConfirmVisitSheet
+        ref={confirmSheetRef}
+        stop={stopToValidate}
+        onConfirmed={() => {
+          confirmSheetRef.current?.dismiss();
+          setStopToValidate(null);
+          // El backend llena `completed_at` de la ruta al confirmar (fix
+          // PCRM-147), asi que refrescar alcanza: no hace falta tocar el
+          // estado local ni adivinar como quedo la parada.
+          void loadRoute();
+        }}
+      />
 
       <AppMenu visible={menuVisible} onClose={() => setMenuVisible(false)} />
     </ThemedView>
@@ -149,6 +209,13 @@ const styles = StyleSheet.create({
     left: Spacing.three,
     right: Spacing.three,
     bottom: Spacing.three,
+    gap: Spacing.one,
+  },
+  mapsCaption: {
+    alignSelf: 'center',
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.half,
+    borderRadius: Spacing.two,
   },
   bottomBar: {
     paddingHorizontal: Spacing.three,

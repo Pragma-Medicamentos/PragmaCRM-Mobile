@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 import { ApiError } from '@/lib/api';
 import { fetchDailyRoute, type DailyRoute } from '@/lib/daily-route';
-import { supabase } from '@/lib/supabase';
+import { isSessionUnauthorized } from '@/lib/request-config';
 import { useAuthStore } from '@/stores/auth-store';
 
 /**
@@ -30,15 +30,6 @@ export const useRouteStore = create<RouteStore>((set, get) => ({
   refreshing: false,
 
   async loadRoute(date) {
-    // Se le pide el token a supabase-js en lugar de usar el que trae
-    // auth-store: getSession renueva el access token si ya vencio, cosa que
-    // pasa al abrir la app despues de un rato en el fondo. Mandar el token
-    // cacheado haria que la API respondiera 401 por un motivo que no es el
-    // del usuario.
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token ?? null;
-    if (!token) return undefined;
-
     const alreadyLoaded = get().route.status === 'ready';
     if (alreadyLoaded) {
       set({ refreshing: true });
@@ -47,12 +38,19 @@ export const useRouteStore = create<RouteStore>((set, get) => ({
     }
 
     try {
-      const route = await fetchDailyRoute(token, date);
+      const route = await fetchDailyRoute(date);
       set({ route: { status: 'ready', route }, refreshing: false });
       return undefined;
     } catch (error) {
       const apiError =
         error instanceof ApiError ? error : new ApiError(0, 'Ocurrió un error inesperado.');
+
+      // La sesion ya se cerro en apiFetch. No dejar la ruta del vendedor en
+      // pantalla ni un error de "reintentar" cuando el destino es el login.
+      if (isSessionUnauthorized(apiError.status, apiError.message)) {
+        set({ refreshing: false });
+        return apiError.message;
+      }
 
       // R10: un refresh fallido sobre datos que ya estaban en pantalla no los
       // tira -- si no, un tropiezo de red transitorio durante un

@@ -5,14 +5,15 @@ import {
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet';
 import { forwardRef, useCallback, useEffect, useMemo, type ComponentRef } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { StopCard } from './stop-card';
 import { ThemedText } from './themed-text';
 import { Button } from './ui/button';
 
 import { Spacing } from '@/constants/theme';
-import { useDeviceLocation } from '@/hooks/use-device-location';
+import type { DailyRouteStop } from '@/lib/daily-route';
+import type { Coordinates } from '@/lib/distance';
 import { useTheme } from '@/hooks/use-theme';
 import { useRouteStore } from '@/stores/route-store';
 
@@ -26,19 +27,23 @@ import { useRouteStore } from '@/stores/route-store';
  * sumaria una segunda dimension de scroll (virtualizacion) sin beneficio a
  * este tamaño.
  */
-export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>>(function StopsSheet(
-  _props,
+type Props = {
+  /** Misma lectura que el mapa. Esta hoja no abre otro watcher. */
+  currentLocation: Coordinates | null;
+  /** Se llama al tocar una tarjeta con GPS; las que no tienen quedan inertes. */
+  onStopPress?: (stop: DailyRouteStop) => void;
+  /** Se llama desde el boton "Validar visita (GPS)" de la tarjeta. */
+  onValidateStop?: (stop: DailyRouteStop) => void;
+};
+
+export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>, Props>(function StopsSheet(
+  { currentLocation, onStopPress, onValidateStop },
   ref,
 ) {
   const theme = useTheme();
   const route = useRouteStore((state) => state.route);
+  const refreshing = useRouteStore((state) => state.refreshing);
   const loadRoute = useRouteStore((state) => state.loadRoute);
-  // R12: esta hoja abre su propia suscripcion de ubicacion (independiente de
-  // la del mapa en (protected)/index.tsx -- ver el comentario de
-  // useDeviceLocation) para poder mostrar distancia en cada tarjeta. Con
-  // permiso denegado o sin fix todavia, `location` queda en null y
-  // StopCard ya sabe degradar a `{zona} ›` sin romperse.
-  const { location } = useDeviceLocation();
 
   // `idle` solo pasa por el primer render de la app (antes de que
   // (protected)/index.tsx dispare `loadRoute()` al montar). Se repite el
@@ -126,15 +131,34 @@ export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>>(func
           </ThemedText>
           <Button title="Reintentar" onPress={() => void loadRoute()} />
         </View>
-      ) : route.route.stops.length === 0 ? (
-        <ThemedText themeColor="textSecondary" style={styles.empty}>
-          No tenés paradas asignadas hoy.
-        </ThemedText>
       ) : (
-        <BottomSheetScrollView contentContainerStyle={styles.list}>
-          {route.route.stops.map((stop) => (
-            <StopCard key={stop.id} stop={stop} currentLocation={location} />
-          ))}
+        <BottomSheetScrollView
+          contentContainerStyle={route.route.stops.length === 0 ? styles.empty : styles.list}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                void loadRoute();
+              }}
+              tintColor={theme.tint}
+              colors={[theme.tint]}
+            />
+          }>
+          {route.route.stops.length === 0 ? (
+            <ThemedText themeColor="textSecondary" style={styles.emptyText}>
+              No tenés paradas asignadas hoy.
+            </ThemedText>
+          ) : (
+            route.route.stops.map((stop) => (
+              <StopCard
+                key={stop.id}
+                stop={stop}
+                currentLocation={currentLocation}
+                onPress={onStopPress && stop.location ? () => onStopPress(stop) : undefined}
+                onValidatePress={onValidateStop ? () => onValidateStop(stop) : undefined}
+              />
+            ))
+          )}
         </BottomSheetScrollView>
       )}
     </BottomSheetModal>
@@ -168,6 +192,10 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
   },
   empty: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  emptyText: {
     textAlign: 'center',
     paddingTop: Spacing.four,
     paddingHorizontal: Spacing.three,

@@ -1,7 +1,8 @@
 import * as Location from 'expo-location';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { Coordinates } from '@/lib/distance';
+import type { LocationRead } from '@/lib/visit-gate';
 
 /**
  * Cada cuantos metros de desplazamiento se pide una nueva lectura de GPS.
@@ -20,74 +21,224 @@ export type DeviceLocationState = {
    * degradacion del subtitulo.
    */
   location: Coordinates | null;
+  /**
+   * Precision informada por el sistema para `location`, en metros. Null
+   * mientras no hay lectura. La guarda el watch porque `readPreciseLocation`
+   * la usa de respaldo y necesita poder decir cuan confiable es.
+   */
+  accuracyMeters: number | null;
   /** true solo cuando el usuario denego el permiso explicitamente. */
   permissionDenied: boolean;
 };
 
-/**
- * Pide permiso de ubicacion en primer plano y, si se concede, escucha la
- * posicion del dispositivo con `Location.watchPositionAsync`.
- *
- * `Accuracy.Balanced` (~100m) en vez de `Accuracy.High` (~10m) a proposito:
- * esta pantalla no da indicaciones giro a giro (eso lo resuelve el deep link
- * de Google Maps una vez que el vendedor lo abre), solo necesita ubicarlo en
- * el mapa y ordenar/mostrar distancias en las tarjetas. `Accuracy.High`
- * mantiene el GPS en su modo de mayor consumo todo el tiempo que la pantalla
- * esta abierta -- una queja de bateria esperando a pasar para algo que no lo
- * necesita.
- *
- * Se usa desde mas de un lugar ((protected)/index.tsx para el mapa,
- * stops-sheet.tsx para las tarjetas): cada montaje abre su propia suscripcion
- * y la cierra al desmontar, en vez de compartir un singleton -- son paradas
- * de la misma app que rara vez estan montadas a la vez (stops-sheet.tsx es un
- * componente que se presenta sobre index.tsx, no una ruta aparte), asi que el
- * costo de una segunda suscripcion cuando si lo estan es minimo comparado con
- * la complejidad de coordinar un estado global.
- */
-export function useDeviceLocation(): DeviceLocationState {
-  const [location, setLocation] = useState<Coordinates | null>(null);
-  const [permissionDenied, setPermissionDenied] = useState(false);
-  const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
+type Listener = (state: DeviceLocationState) => void;
 
-  useEffect(() => {
-    let cancelled = false;
+const listeners = new Set<Listener>();
+let snapshot: DeviceLocationState = {
+  location: null,
+  accuracyMeters: null,
+  permissionDenied: false,
+};
+let subscription: Location.LocationSubscription | null = null;
+let startPromise: Promise<void> | null = null;
 
-    async function start() {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (cancelled) return;
+function publish(partial: Partial<DeviceLocationState>) {
+  snapshot = { ...snapshot, ...partial };
+  for (const listener of listeners) listener(snapshot);
+}
 
-      if (status !== 'granted') {
-        setPermissionDenied(true);
-        return;
-      }
+/** Un solo `watchPositionAsync` aunque mapa y hoja estén montados a la vez. */
+function ensureWatch(): Promise<void> {
+  if (subscription) return Promise.resolve();
+  if (startPromise) return startPromise;
 
-      const subscription = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.Balanced, distanceInterval: DISTANCE_INTERVAL_METERS },
-        (position) => {
-          setLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
-        },
-      );
+  startPromise = (async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (listeners.size === 0) return;
 
-      // El componente pudo desmontarse mientras `watchPositionAsync`
-      // todavia estaba en vuelo -- sin este chequeo la suscripcion quedaria
-      // viva y sin nadie que la cierre (el cleanup de abajo ya corrio con
-      // `subscriptionRef.current` en null).
-      if (cancelled) {
-        subscription.remove();
-        return;
-      }
-
-      subscriptionRef.current = subscription;
+    if (status !== 'granted') {
+      publish({ permissionDenied: true });
+      return;
     }
 
-    void start();
+    try {
+      const last = await Location.getLastKnownPositionAsync();
+      if (listeners.size === 0) return;
+      if (last && !snapshot.location) {
+        publish({
+          location: { lat: last.coords.latitude, lng: last.coords.longitude },
+          accuracyMeters: last.coords.accuracy ?? null,
+          permissionDenied: false,
+        });
+      }
+    } catch {
+      // Servicios apagados: el watch deja `location` en null.
+    }
+
+    if (listeners.size === 0 || subscription) return;
+
+    const next = await Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.Balanced, distanceInterval: DISTANCE_INTERVAL_METERS },
+      (position) => {
+        publish({
+          location: { lat: position.coords.latitude, lng: position.coords.longitude },
+          accuracyMeters: position.coords.accuracy ?? null,
+          permissionDenied: false,
+        });
+      },
+    );
+
+    if (listeners.size === 0) {
+      next.remove();
+      return;
+    }
+
+    subscription = next;
+  })().finally(() => {
+    startPromise = null;
+  });
+
+  return startPromise;
+}
+
+/**
+ * Pide permiso de ubicación en primer plano y escucha la posición con un único
+ * `Location.watchPositionAsync`. La hoja de paradas no abre otro watcher: recibe
+ * esta misma lectura.
+ *
+ * `Accuracy.Balanced` (~100 m) en vez de `Accuracy.High` (~10 m): no hay
+ * indicaciones giro a giro, solo ubicación y distancias.
+ */
+export function useDeviceLocation(): DeviceLocationState {
+  const [state, setState] = useState(snapshot);
+
+  useEffect(() => {
+    listeners.add(setState);
+    void ensureWatch();
 
     return () => {
-      cancelled = true;
-      subscriptionRef.current?.remove();
-      subscriptionRef.current = null;
+      listeners.delete(setState);
+      if (listeners.size === 0) {
+        subscription?.remove();
+        subscription = null;
+      }
     };
   }, []);
 
-  return { location, permissionDenied };
+  return state;
+}
+
+/**
+ * Cuanto se espera un fix fresco antes de rendirse y usar el ultimo conocido.
+ *
+ * `getCurrentPositionAsync` NO tiene timeout propio: si el GPS no consigue
+ * fix, la promesa no resuelve nunca. Visto en emulador -- la llamada arranca
+ * y no vuelve ni con exito ni con error -- y le pasaria igual a un vendedor
+ * dentro de una farmacia con techo de lamina: la hoja se quedaria en "sin
+ * señal" con el boton muerto y sin forma de salir.
+ */
+const PRECISE_READ_TIMEOUT_MS = 10_000;
+
+/** Cuan viejo puede ser el ultimo fix conocido para todavia servir de respaldo. */
+const LAST_KNOWN_MAX_AGE_MS = 60_000;
+
+/** Resuelve a null si `promise` no termina dentro de `ms`. */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+}
+
+/**
+ * Lectura puntual de alta precision, para el momento de confirmar una visita.
+ *
+ * El watch de arriba usa `Accuracy.Balanced` (~100 m) y esta bien asi para lo
+ * que hace: mostrar "a 12.2km" en la tarjeta. Pero el radio de validacion son
+ * 80 m, o sea que esa lectura es mas gruesa que la decision que tendria que
+ * tomar -- un vendedor parado en la puerta puede leerse a 150 m, y uno a
+ * 200 m puede leerse adentro. La compuerta seria ruido, no verificacion.
+ *
+ * Por eso aca se pide `Accuracy.High` (~10 m) una sola vez, en vez de subirle
+ * la precision al watch: el watch corre todo el dia y subirlo costaria bateria
+ * durante horas para un dato que solo importa en el instante del toque.
+ *
+ * Devuelve tambien la precision informada por el sistema, porque una lectura
+ * con ±100 m no puede decidir un radio de 80 m y quien la consuma tiene que
+ * poder verlo en vez de tratarla como si fuera exacta.
+ */
+export async function readPreciseLocation(): Promise<LocationRead> {
+  let status: string;
+
+  try {
+    ({ status } = await Location.getForegroundPermissionsAsync());
+    if (status !== 'granted') {
+      ({ status } = await Location.requestForegroundPermissionsAsync());
+    }
+  } catch {
+    return { status: 'unavailable' };
+  }
+
+  if (status !== 'granted') {
+    publish({ permissionDenied: true });
+    return { status: 'denied' };
+  }
+
+  // Primero un fix fresco y preciso; si no llega a tiempo, el ultimo
+  // conocido. `withTimeout` es lo unico que garantiza que esto termine.
+  let position: Location.LocationObject | null = null;
+
+  try {
+    position = await withTimeout(
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
+      PRECISE_READ_TIMEOUT_MS,
+    );
+  } catch {
+    position = null;
+  }
+
+  if (!position) {
+    try {
+      position = await Location.getLastKnownPositionAsync({
+        maxAge: LAST_KNOWN_MAX_AGE_MS,
+      });
+    } catch {
+      position = null;
+    }
+  }
+
+  if (position) {
+    const location = { lat: position.coords.latitude, lng: position.coords.longitude };
+    const accuracyMeters = position.coords.accuracy ?? null;
+
+    // La lectura buena tambien sirve para la distancia de las tarjetas: seria
+    // raro que la hoja diga "a 25m" y la tarjeta de atras siga en el valor
+    // viejo del watch.
+    publish({ location, accuracyMeters, permissionDenied: false });
+
+    return { status: 'ok', location, accuracyMeters };
+  }
+
+  // Ultimo respaldo: lo que el watch ya venia recibiendo.
+  //
+  // Suena redundante teniendo `getLastKnownPositionAsync` arriba, y no lo es:
+  // las dos anteriores abren una peticion NUEVA al proveedor, y hay
+  // proveedores que solo alimentan suscripciones vivas -- el de prueba del
+  // emulador es uno, y con el la hoja decia "no se pudo obtener tu ubicacion"
+  // mientras el punto azul del mapa, alimentado por el watch, estaba ahi
+  // mismo. Contradecir en pantalla algo que la propia app ya sabe es peor que
+  // una lectura menos precisa.
+  //
+  // Se devuelve con la precision real del watch (`Accuracy.Balanced`, del
+  // orden de 100 m), no como si fuera exacta: `visitGateMessage` la muestra
+  // cuando no alcanza para sostener el radio.
+  if (snapshot.location) {
+    return {
+      status: 'ok',
+      location: snapshot.location,
+      accuracyMeters: snapshot.accuracyMeters,
+    };
+  }
+
+  return { status: 'unavailable' };
 }
