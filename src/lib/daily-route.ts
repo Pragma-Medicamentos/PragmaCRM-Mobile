@@ -48,6 +48,19 @@ export interface DailyRouteStop {
   municipality: string | null;
   phone: string | null;
   /**
+   * Personalidad del cliente (RF-12) como color en minusculas: `rojo`,
+   * `amarillo`, `verde` o `azul`. Es texto libre en la base, asi que se lee
+   * siempre a traves de `personalityKey` (ver `customer-profile.ts`). Siempre
+   * null en prospectos: esa tabla no tiene la columna.
+   */
+  personality: string | null;
+  /** Potencial de compra (RF-12): `alto`, `medio` o `bajo`. Null en prospectos. */
+  potential: string | null;
+  /** Null en prospectos. */
+  establishment_type: string | null;
+  /** `customer.credit_limit`, en dolares. Null en prospectos. */
+  credit_limit: number | null;
+  /**
    * Null cuando el destino no tiene GPS cargado, un caso real y frecuente (la
    * lista de clientes tiene un filtro `without_gps`). El conteo de pines va a
    * diferir del conteo de paradas por diseno, y la tarjeta degrada a mostrar

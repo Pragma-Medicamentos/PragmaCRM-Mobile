@@ -6,6 +6,7 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
+import type { PersonalityKey } from '@/lib/customer-profile';
 import type { StopType } from '@/lib/daily-route';
 
 /**
@@ -188,3 +189,27 @@ export const ProspectColors = {
   border: '#A67A00',
   text: brand.text,
 } as const;
+
+/**
+ * Colores de la personalidad del cliente (RF-12): el punto y el texto del chip
+ * de la tarjeta y del detalle.
+ *
+ * Fuera de `Colors` por la misma razon que `StopTypeColors`: son colores de un
+ * dato del dominio, no de marca, y no deben aparecer en `themeColor`.
+ *
+ * El `dot` es el color que nombra la personalidad y tiene que leerse como tal
+ * ("rojo" tiene que verse rojo), asi que no se reusa el verde de marca ni el
+ * azul de Despacho: un verde de personalidad identico al de la pildora de
+ * Visita haria pensar que el chip habla del tipo de parada. `text` es la
+ * variante oscura de cada uno, porque el amarillo como texto sobre blanco no
+ * pasa contraste.
+ */
+export const PersonalityColors: Record<
+  PersonalityKey,
+  { dot: string; text: string; background: string }
+> = {
+  rojo: { dot: '#D93025', text: '#A1201A', background: withAlpha('#D93025', 0.12) },
+  amarillo: { dot: '#F2C200', text: '#7A5E00', background: withAlpha('#F2C200', 0.16) },
+  verde: { dot: '#2E9E4F', text: '#1E6B35', background: withAlpha('#2E9E4F', 0.12) },
+  azul: { dot: '#1A73E8', text: '#1356AD', background: withAlpha('#1A73E8', 0.12) },
+};
