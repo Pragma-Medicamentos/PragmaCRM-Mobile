@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { CustomerProfileRow } from './customer-profile-row';
 import { ProspectPill } from './prospect-pill';
 import { StopBadge } from './stop-badge';
 import { Button } from './ui/button';
@@ -12,7 +13,7 @@ import { formatDistance, haversineMeters, type Coordinates } from '@/lib/distanc
 import type { DailyRouteStop } from '@/lib/daily-route';
 import { formatStopTime } from '@/lib/format-time';
 import { isProspectStop } from '@/lib/stop-pin';
-import { isVisitable } from '@/lib/visit-gate';
+import { isVisitable, needsLocation } from '@/lib/visit-gate';
 
 type Props = {
   stop: DailyRouteStop;
@@ -23,17 +24,24 @@ type Props = {
    * sin `location` en la parada se degrada igual que sin GPS.
    */
   currentLocation?: Coordinates | null;
-  /**
-   * Sin handler la tarjeta no es tocable: quien la monta decide (la hoja no
-   * lo pasa para paradas sin GPS, que no tienen pin donde centrar el mapa).
-   */
+  /** Abre el detalle del cliente. Sin handler la tarjeta no es tocable. */
   onPress?: () => void;
+} & StopActionProps;
+
+type StopActionProps = {
   /**
    * Abre la hoja de validacion por GPS. El boton solo aparece cuando la
-   * parada admite confirmarse (ver `isVisitable`): sin handler no se dibuja,
-   * igual que `onPress`.
+   * parada admite confirmarse (ver `isVisitable`): sin handler no se dibuja.
    */
   onValidatePress?: () => void;
+  /**
+   * Fija el pin de un cliente que no tiene (PCRM-160). Ocupa el lugar de
+   * "Validar visita" mientras la parada no tenga ubicacion (ver
+   * `needsLocation`): una vez fijada, la parada vuelve al flujo normal.
+   */
+  onSetLocationPress?: () => void;
+  /** Mientras se lee el GPS y se guarda, el boton muestra el spinner. */
+  settingLocation?: boolean;
 };
 
 /**
@@ -42,7 +50,10 @@ type Props = {
  * del vendedor -- sin cualquiera de los dos se degrada a mostrar solo la
  * zona (o el municipio, para el caso real de un prospecto sin zona).
  */
-function buildSubtitle(stop: DailyRouteStop, currentLocation: Coordinates | null | undefined) {
+export function buildStopSubtitle(
+  stop: DailyRouteStop,
+  currentLocation: Coordinates | null | undefined,
+) {
   if (stop.completed_at) {
     return `completada ${formatStopTime(stop.completed_at)}`;
   }
@@ -62,13 +73,51 @@ function buildSubtitle(stop: DailyRouteStop, currentLocation: Coordinates | null
   return '›';
 }
 
+/**
+ * El boton de accion de una parada: "Validar visita (GPS)" o, si el cliente
+ * todavia no tiene pin, "Establecer ubicación". Es el mismo en la tarjeta y en
+ * el detalle, para que las dos pantallas ofrezcan siempre lo mismo.
+ */
+export function StopAction({
+  stop,
+  onValidatePress,
+  onSetLocationPress,
+  settingLocation = false,
+}: StopActionProps & { stop: DailyRouteStop }) {
+  if (onValidatePress && isVisitable(stop)) {
+    return <Button title="Validar visita (GPS)" onPress={onValidatePress} />;
+  }
+
+  if (onSetLocationPress && needsLocation(stop)) {
+    return (
+      <Button
+        title="Establecer ubicación"
+        variant="outline"
+        onPress={onSetLocationPress}
+        loading={settingLocation}
+      />
+    );
+  }
+
+  return null;
+}
+
 /** Tarjeta de una parada en la lista de la ruta diaria. */
-export function StopCard({ stop, currentLocation, onPress, onValidatePress }: Props) {
+export function StopCard({
+  stop,
+  currentLocation,
+  onPress,
+  onValidatePress,
+  onSetLocationPress,
+  settingLocation,
+}: Props) {
   const theme = useTheme();
   const isCompleted = stop.completed_at !== null;
   const isProspect = isProspectStop(stop);
-  const canValidate = onValidatePress !== undefined && isVisitable(stop);
-  const subtitle = buildSubtitle(stop, currentLocation);
+  const hasAction =
+    (onValidatePress !== undefined && isVisitable(stop)) ||
+    (onSetLocationPress !== undefined && needsLocation(stop));
+  const subtitle = buildStopSubtitle(stop, currentLocation);
 
   return (
     <Pressable
@@ -76,7 +125,7 @@ export function StopCard({ stop, currentLocation, onPress, onValidatePress }: Pr
       disabled={!onPress}
       accessibilityRole={onPress ? 'button' : 'summary'}
       accessibilityLabel={`${stop.name}${isCompleted ? ', completada' : ''}, ${subtitle}`}
-      accessibilityHint={onPress ? 'Muestra la parada en el mapa' : undefined}
+      accessibilityHint={onPress ? 'Muestra el detalle del cliente' : undefined}
       style={({ pressed }) => [
         styles.card,
         { backgroundColor: theme.backgroundElement },
@@ -103,6 +152,8 @@ export function StopCard({ stop, currentLocation, onPress, onValidatePress }: Pr
         </View>
       )}
 
+      <CustomerProfileRow stop={stop} />
+
       <ThemedText type="small" themeColor="textSecondary">
         {subtitle}
       </ThemedText>
@@ -111,9 +162,14 @@ export function StopCard({ stop, currentLocation, onPress, onValidatePress }: Pr
           boton es legal en RN (el hijo gana el toque) y evita partir la
           tarjeta en dos. `View` intermedio para que el boton no se estire a
           todo el ancho como haria `alignSelf: 'stretch'` del Button. */}
-      {canValidate && (
+      {hasAction && (
         <View style={styles.actionRow}>
-          <Button title="Validar visita (GPS)" onPress={onValidatePress} />
+          <StopAction
+            stop={stop}
+            onValidatePress={onValidatePress}
+            onSetLocationPress={onSetLocationPress}
+            settingLocation={settingLocation}
+          />
         </View>
       )}
     </Pressable>

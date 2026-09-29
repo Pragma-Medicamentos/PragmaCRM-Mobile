@@ -30,14 +30,18 @@ import { useRouteStore } from '@/stores/route-store';
 type Props = {
   /** Misma lectura que el mapa. Esta hoja no abre otro watcher. */
   currentLocation: Coordinates | null;
-  /** Se llama al tocar una tarjeta con GPS; las que no tienen quedan inertes. */
+  /** Se llama al tocar cualquier tarjeta: abre el detalle del cliente. */
   onStopPress?: (stop: DailyRouteStop) => void;
   /** Se llama desde el boton "Validar visita (GPS)" de la tarjeta. */
   onValidateStop?: (stop: DailyRouteStop) => void;
+  /** Se llama desde el boton "Establecer ubicación" (cliente sin pin). */
+  onSetLocation?: (stop: DailyRouteStop) => void;
+  /** La parada cuyo pin se esta fijando, para el spinner de su boton. */
+  settingLocationId?: string | null;
 };
 
 export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>, Props>(function StopsSheet(
-  { currentLocation, onStopPress, onValidateStop },
+  { currentLocation, onStopPress, onValidateStop, onSetLocation, settingLocationId },
   ref,
 ) {
   const theme = useTheme();
@@ -154,8 +158,10 @@ export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>, Prop
                 key={stop.id}
                 stop={stop}
                 currentLocation={currentLocation}
-                onPress={onStopPress && stop.location ? () => onStopPress(stop) : undefined}
+                onPress={onStopPress ? () => onStopPress(stop) : undefined}
                 onValidatePress={onValidateStop ? () => onValidateStop(stop) : undefined}
+                onSetLocationPress={onSetLocation ? () => onSetLocation(stop) : undefined}
+                settingLocation={settingLocationId === stop.id}
               />
             ))
           )}
