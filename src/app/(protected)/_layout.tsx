@@ -32,16 +32,15 @@ export default function ProtectedLayout() {
   if (profile.status === 'idle' || profile.status === 'pending') return <Loading />;
 
   if (profile.status === 'error') {
-    // Una sesion realmente vencida no llega hasta aqui: supabase-js intenta
-    // renovarla, y si no puede emite SIGNED_OUT y el guard raiz devuelve al
-    // login solo. Por eso un 401 con sesion viva significa que la API rechazo
-    // un token valido — un problema de contrato, no del usuario — y cerrarle la
-    // sesion automaticamente solo escondería la causa.
+    // Un 401 de sesion no llega hasta aqui: apiFetch refresca el token una
+    // vez y, si sigue rechazado, cierra la sesion local. El guard raiz
+    // devuelve al login. El 401 que si se queda es el de la compuerta
+    // `x-api-key`, y cerrar sesion no lo arregla.
     if (profile.error.status === 401) {
       return (
         <AccessDenied
-          title="No se pudo validar tu sesión"
-          message="El servidor no aceptó tu sesión. Inténtalo de nuevo o vuelve a iniciar sesión."
+          title="No se pudo validar la solicitud"
+          message="El servidor rechazó la petición antes de aceptar la sesión. Inténtalo de nuevo o vuelve a iniciar sesión."
           onRetry={() => void loadProfile()}
         />
       );
@@ -85,12 +84,13 @@ export default function ProtectedLayout() {
 
   // `set-password` queda SIN guard a proposito. Si se protegiera con la
   // condicion inversa seria inalcanzable durante una recuperacion; dejandola
-  // como unica pantalla disponible, el router cae en ella cuando los tabs
-  // desaparecen, y eso la vuelve obligatoria sin ruta de escape.
+  // como unica pantalla disponible, el router cae en ella cuando la pantalla
+  // de indice desaparece del guard, y eso la vuelve obligatoria sin ruta de
+  // escape.
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={!mustSetPassword}>
-        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="index" />
       </Stack.Protected>
 
       <Stack.Screen name="set-password" />

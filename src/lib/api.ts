@@ -1,3 +1,12 @@
+import { fetch } from 'expo/fetch';
+
+import {
+  buildApiHeaders,
+  isSessionUnauthorized,
+  SESSION_EXPIRED_MESSAGE,
+} from '@/lib/request-config';
+import { supabase } from '@/lib/supabase';
+
 export const ROLES = {
   ADMIN: 'Administrador',
   SELLER: 'Vendedor',
@@ -67,31 +76,138 @@ if (!apiKey) {
   );
 }
 
+type FetchResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; status: number; message: string };
+
+const API_TIMEOUT_MS = 20_000;
+const API_TIMEOUT_MESSAGE = 'La solicitud tardó demasiado. Intenta de nuevo.';
+
+/**
+ * Unica salida HTTP hacia PragmaCRM-Api. Usa `expo/fetch` (Fetch de Expo,
+ * WinterCG) para que un `EXPO_PUBLIC_USE_RN_FETCH=1` no baje estas llamadas
+ * al fetch de React Native. Supabase sigue con su propio cliente.
+ *
+ * A los 20s se aborta con un AbortController (equivalente a AbortSignal.timeout,
+ * pero se puede desarmar para no cortar el cuerpo ya recibido). Si el fetch
+ * nativo no rechaza al abortar, la carrera igual suelta la UI.
+ */
+async function perform<T>(path: string, token: string, init?: RequestInit): Promise<FetchResult<T>> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, API_TIMEOUT_MS);
+
+  const caller = init?.signal;
+  const onCallerAbort = () => controller.abort();
+  if (caller) {
+    if (caller.aborted) controller.abort();
+    else caller.addEventListener('abort', onCallerAbort, { once: true });
+  }
+
+  const timeoutResult = new Promise<never>((_, reject) => {
+    controller.signal.addEventListener(
+      'abort',
+      () => {
+        if (timedOut) reject(new ApiError(0, API_TIMEOUT_MESSAGE));
+      },
+      { once: true },
+    );
+  });
+  timeoutResult.catch(() => {});
+
+  const asTimeout = (error: unknown): never => {
+    if (error instanceof ApiError) throw error;
+    if (timedOut) throw new ApiError(0, API_TIMEOUT_MESSAGE);
+    throw new ApiError(0, 'No se pudo conectar con el servidor.');
+  };
+
+  let response: Response;
+  let body: { message?: string; data?: T } | null;
+  try {
+    response = await Promise.race([
+      fetch(`${baseUrl}${path}`, {
+        ...init,
+        signal: controller.signal,
+        headers: buildApiHeaders(apiKey, token, init?.headers),
+      }),
+      timeoutResult,
+    ]);
+    body = (await Promise.race([response.json().catch(() => null), timeoutResult])) as {
+      message?: string;
+      data?: T;
+    } | null;
+  } catch (error) {
+    return asTimeout(error);
+  } finally {
+    clearTimeout(timeoutId);
+    caller?.removeEventListener('abort', onCallerAbort);
+  }
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      message: body?.message ?? 'Ocurrió un error inesperado.',
+    };
+  }
+  return { ok: true, data: body?.data as T };
+}
+
+async function readAccessToken(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
+}
+
+async function refreshAccessToken(): Promise<string | null> {
+  const { data, error } = await supabase.auth.refreshSession();
+  if (error) return null;
+  return data.session?.access_token ?? null;
+}
+
+/**
+ * Cierra la sesion en el dispositivo. `scope: 'local'` no depende de que el
+ * access token todavia le sirva al servidor: con un JWT vencido, un logout
+ * remoto puede fallar y dejar al vendedor dentro de la app.
+ * El guard raiz ve `SIGNED_OUT` y vuelve al login.
+ */
+async function endSession(): Promise<void> {
+  await supabase.auth.signOut({ scope: 'local' });
+}
+
+async function rejectSession(): Promise<never> {
+  await endSession();
+  throw new ApiError(401, SESSION_EXPIRED_MESSAGE);
+}
+
 /**
  * The API wraps every response in `{ success, message, data?, errors? }`.
  * Callers get `data` directly; anything non-2xx becomes an ApiError carrying
  * the status, which is what separates "session expired" (401) from
  * "account not authorized" (403).
+ *
+ * Toda llamada que pase por aqui es protegida: el Bearer sale de la sesion
+ * guardada en SecureStore, no de un argumento que el llamador pueda omitir.
+ * Un 401 de sesion refresca el token una vez; si sigue rechazado, cierra
+ * sesion. Un 401 de `x-api-key` no cierra sesion.
  */
-export async function apiFetch<T>(path: string, token: string | null, init?: RequestInit): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(`${baseUrl}${path}`, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...init?.headers,
-      },
-    });
-  } catch {
-    throw new ApiError(0, 'No se pudo conectar con el servidor.');
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = await readAccessToken();
+  if (!token) return rejectSession();
+
+  const first = await perform<T>(path, token, init);
+  if (first.ok) return first.data;
+  if (!isSessionUnauthorized(first.status, first.message)) {
+    throw new ApiError(first.status, first.message);
   }
 
-  const body = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new ApiError(response.status, body?.message ?? 'Ocurrió un error inesperado.');
-  }
-  return body?.data as T;
+  const refreshed = await refreshAccessToken();
+  if (!refreshed) return rejectSession();
+
+  const second = await perform<T>(path, refreshed, init);
+  if (second.ok) return second.data;
+  if (isSessionUnauthorized(second.status, second.message)) return rejectSession();
+  throw new ApiError(second.status, second.message);
 }
