@@ -6,7 +6,7 @@ import {
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet';
 import { forwardRef, useCallback, useMemo, useState, type ComponentRef } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from './themed-text';
 import { Button } from './ui/button';
@@ -96,6 +96,11 @@ export const ConfirmVisitSheet = forwardRef<ConfirmVisitSheetHandle, Props>(
       : { status: 'unavailable' as const };
     const canConfirm = gate.status === 'ready' && !reading && !submitting;
 
+    function finishConfirmed(stopName: string) {
+      onConfirmed();
+      Alert.alert('Visita validada', `${stopName} quedó marcada como visitada.`);
+    }
+
     async function handleConfirm() {
       if (!stop?.location || read?.status !== 'ok') return;
 
@@ -108,14 +113,14 @@ export const ConfirmVisitSheet = forwardRef<ConfirmVisitSheetHandle, Props>(
           location: read.location,
           notes,
         });
-        onConfirmed();
+        finishConfirmed(stop.name);
       } catch (error) {
         // 409 es "esta parada ya estaba confirmada". Para el vendedor eso no
         // es un error: es el resultado que buscaba, y pasa de verdad cuando un
         // reintento offline llega dos veces. Se trata como exito y se refresca
         // la ruta, que es lo que deja la tarjeta en gris.
         if (error instanceof ApiError && error.status === 409) {
-          onConfirmed();
+          finishConfirmed(stop.name);
           return;
         }
 
