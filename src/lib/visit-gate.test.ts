@@ -5,8 +5,10 @@ import type { Coordinates } from './distance.ts';
 import type { LocationRead } from './visit-gate.ts';
 import {
   GPS_RADIUS_METERS,
+  isPreciseEnoughToPin,
   isVisitable,
   isWithinRadius,
+  needsLocation,
   visitGate,
   visitGateMessage,
 } from './visit-gate.ts';
@@ -133,4 +135,28 @@ test('el motivo incluye la distancia, que es lo accionable', () => {
     visitGateMessage({ status: 'ready', distanceMeters: 25, accuracyMeters: 5 }),
     /25m/,
   );
+});
+
+test('un cliente pendiente sin pin necesita que se le fije ubicacion', () => {
+  assert.equal(needsLocation({ ...CLIENTE_PENDIENTE, location: null }), true);
+});
+
+test('un cliente con pin, completado o un prospecto no piden ubicacion', () => {
+  assert.equal(needsLocation(CLIENTE_PENDIENTE), false);
+  assert.equal(
+    needsLocation({ ...CLIENTE_PENDIENTE, location: null, completed_at: '2026-09-29T15:00:00Z' }),
+    false,
+  );
+  assert.equal(
+    needsLocation({ ...CLIENTE_PENDIENTE, location: null, target_kind: 'prospect' }),
+    false,
+  );
+});
+
+test('fijar el pin exige una precision no peor que el radio', () => {
+  assert.equal(isPreciseEnoughToPin(GPS_RADIUS_METERS), true);
+  assert.equal(isPreciseEnoughToPin(12), true);
+  assert.equal(isPreciseEnoughToPin(GPS_RADIUS_METERS + 1), false);
+  // Sin precision informada no se puede saber cuanto se equivoca la lectura.
+  assert.equal(isPreciseEnoughToPin(null), false);
 });

@@ -9,12 +9,14 @@ import {
   type ConfirmVisitSheetHandle,
 } from '@/components/confirm-visit-sheet';
 import { RouteMap, type RouteMapHandle } from '@/components/route-map';
+import { StopDetailSheet, type StopDetailSheetHandle } from '@/components/stop-detail-sheet';
 import { StopsSheet } from '@/components/stops-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
 import { Spacing } from '@/constants/theme';
 import { useDeviceLocation } from '@/hooks/use-device-location';
+import { useSetStopLocation } from '@/hooks/use-set-stop-location';
 import { useTheme } from '@/hooks/use-theme';
 import type { DailyRouteStop } from '@/lib/daily-route';
 import { buildGoogleMapsLink } from '@/lib/google-maps-link';
@@ -38,6 +40,12 @@ export default function HomeScreen() {
   // La parada que la hoja de validacion esta confirmando. Vive aca y no dentro
   // de la hoja porque quien la abre es la tarjeta, que esta en la otra hoja.
   const [stopToValidate, setStopToValidate] = useState<DailyRouteStop | null>(null);
+  const detailSheetRef = useRef<StopDetailSheetHandle>(null);
+  // Se guarda el id y no la parada: la parada se re-deriva de la ruta en cada
+  // render (ver `detailStop` abajo), asi el detalle abierto refleja el pin
+  // recien fijado o la visita recien confirmada sin tener que cerrarlo.
+  const [detailStopId, setDetailStopId] = useState<string | null>(null);
+  const { settingLocationId, setLocation } = useSetStopLocation(loadRoute);
   // Un solo watcher. La hoja de paradas recibe esta misma lectura.
   const { location } = useDeviceLocation();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -53,6 +61,12 @@ export default function HomeScreen() {
   }, [route.status, loadRoute]);
 
   const stops = route.status === 'ready' ? route.route.stops : NO_STOPS;
+  const detailStop = stops.find((stop) => stop.id === detailStopId) ?? null;
+
+  const validateStop = (stop: DailyRouteStop) => {
+    setStopToValidate(stop);
+    confirmSheetRef.current?.present();
+  };
   const stopCount = route.status === 'ready' ? stops.length : null;
   // null cuando no queda ninguna parada pendiente con GPS (ruta sin cargar,
   // sin GPS, o todas visitadas) -- sin nada que enlazar, el boton de Google
@@ -132,22 +146,36 @@ export default function HomeScreen() {
         </View>
       </SafeAreaView>
 
-      {/*
-        Tocar una tarjeta cierra la hoja, centra el mapa en esa parada y abre
-        la etiqueta con su nombre: con la hoja al 68% el pin quedaria tapado
-        si solo se moviera la camara.
-      */}
+      {/* Tocar una tarjeta abre el detalle del cliente (PCRM-166). */}
       <StopsSheet
         ref={stopsSheetRef}
         currentLocation={location}
         onStopPress={(stop) => {
+          setDetailStopId(stop.id);
+          detailSheetRef.current?.present();
+        }}
+        onValidateStop={validateStop}
+        onSetLocation={setLocation}
+        settingLocationId={settingLocationId}
+      />
+
+      {/*
+        "Ver en el mapa" cierra las dos hojas, centra el mapa en esa parada y
+        abre la etiqueta con su nombre: con una hoja abierta el pin quedaria
+        tapado si solo se moviera la camara.
+      */}
+      <StopDetailSheet
+        ref={detailSheetRef}
+        stop={detailStop}
+        currentLocation={location}
+        onShowOnMap={(stop) => {
+          detailSheetRef.current?.dismiss();
           stopsSheetRef.current?.dismiss();
           routeMapRef.current?.focusStop(stop.id);
         }}
-        onValidateStop={(stop) => {
-          setStopToValidate(stop);
-          confirmSheetRef.current?.present();
-        }}
+        onValidate={validateStop}
+        onSetLocation={setLocation}
+        settingLocation={detailStop !== null && settingLocationId === detailStop.id}
       />
 
       {/*
