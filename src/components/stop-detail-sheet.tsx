@@ -35,6 +35,8 @@ type Props = {
   onValidate: (stop: DailyRouteStop) => void;
   onSetLocation: (stop: DailyRouteStop) => void;
   settingLocation: boolean;
+  /** Abre la hoja de nota (RF-07). Solo se ofrece en paradas completadas. */
+  onEditNote: (stop: DailyRouteStop) => void;
 };
 
 export type StopDetailSheetHandle = ComponentRef<typeof BottomSheetModal>;
@@ -48,7 +50,15 @@ export type StopDetailSheetHandle = ComponentRef<typeof BottomSheetModal>;
  * el vendedor vuelve a la lista, que es donde estaba.
  */
 export const StopDetailSheet = forwardRef<StopDetailSheetHandle, Props>(function StopDetailSheet(
-  { stop, currentLocation, onShowOnMap, onValidate, onSetLocation, settingLocation },
+  {
+    stop,
+    currentLocation,
+    onShowOnMap,
+    onValidate,
+    onSetLocation,
+    settingLocation,
+    onEditNote,
+  },
   ref,
 ) {
   const theme = useTheme();
@@ -113,6 +123,23 @@ export const StopDetailSheet = forwardRef<StopDetailSheetHandle, Props>(function
 
             {stop.reason && <DetailField label="Motivo de la parada" value={stop.reason} />}
 
+            {/* No `DetailField`: ese oculta los valores vacios, y "Sin nota" es
+                justamente lo que el vendedor necesita ver para agregarla. */}
+            {stop.completed_at && (
+              <View style={styles.field}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Nota
+                </ThemedText>
+                {stop.notes ? (
+                  <ThemedText type="default">{stop.notes}</ThemedText>
+                ) : (
+                  <ThemedText type="default" themeColor="textSecondary">
+                    Sin nota
+                  </ThemedText>
+                )}
+              </View>
+            )}
+
             <View style={styles.actions}>
               <StopAction
                 stop={stop}
@@ -120,6 +147,13 @@ export const StopDetailSheet = forwardRef<StopDetailSheetHandle, Props>(function
                 onSetLocationPress={() => onSetLocation(stop)}
                 settingLocation={settingLocation}
               />
+              {stop.completed_at && (
+                <Button
+                  title={stop.notes ? 'Editar nota' : 'Agregar nota'}
+                  variant="secondary"
+                  onPress={() => onEditNote(stop)}
+                />
+              )}
               {stop.location && (
                 <Button
                   title="Ver en el mapa"

@@ -10,6 +10,7 @@ import {
 } from '@/components/confirm-visit-sheet';
 import { RouteMap, type RouteMapHandle } from '@/components/route-map';
 import { StopDetailSheet, type StopDetailSheetHandle } from '@/components/stop-detail-sheet';
+import { StopNoteSheet, type StopNoteSheetHandle } from '@/components/stop-note-sheet';
 import { StopsSheet } from '@/components/stops-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -45,6 +46,10 @@ export default function HomeScreen() {
   // render (ver `detailStop` abajo), asi el detalle abierto refleja el pin
   // recien fijado o la visita recien confirmada sin tener que cerrarlo.
   const [detailStopId, setDetailStopId] = useState<string | null>(null);
+  const noteSheetRef = useRef<StopNoteSheetHandle>(null);
+  // Por id, igual que el detalle: la hoja de nota lee `notes` de la parada
+  // ya refrescada.
+  const [noteStopId, setNoteStopId] = useState<string | null>(null);
   const { settingLocationId, setLocation } = useSetStopLocation(loadRoute);
   // Un solo watcher. La hoja de paradas recibe esta misma lectura.
   const { location } = useDeviceLocation();
@@ -62,6 +67,7 @@ export default function HomeScreen() {
 
   const stops = route.status === 'ready' ? route.route.stops : NO_STOPS;
   const detailStop = stops.find((stop) => stop.id === detailStopId) ?? null;
+  const noteStop = stops.find((stop) => stop.id === noteStopId) ?? null;
 
   const validateStop = (stop: DailyRouteStop) => {
     setStopToValidate(stop);
@@ -176,6 +182,21 @@ export default function HomeScreen() {
         onValidate={validateStop}
         onSetLocation={setLocation}
         settingLocation={detailStop !== null && settingLocationId === detailStop.id}
+        onEditNote={(stop) => {
+          setNoteStopId(stop.id);
+          noteSheetRef.current?.present();
+        }}
+      />
+
+      {/* Apilada sobre el detalle: al guardar se cierra y el detalle, que se
+          re-deriva de la ruta refrescada, ya muestra la nota nueva. */}
+      <StopNoteSheet
+        ref={noteSheetRef}
+        stop={noteStop}
+        onSaved={() => {
+          noteSheetRef.current?.dismiss();
+          void loadRoute();
+        }}
       />
 
       {/*
