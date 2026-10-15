@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api';
+import type { StopCustomerMetrics } from '@/lib/customer-metrics';
 import type { Coordinates } from '@/lib/distance';
 
 /** Clasificacion de la parada (CLAUDE.md 5.2 del repo de la API). */
@@ -118,4 +119,21 @@ export interface DailyRoute {
 export function fetchDailyRoute(date?: string): Promise<DailyRoute> {
   const query = date ? `?date=${encodeURIComponent(date)}` : '';
   return apiFetch<DailyRoute>(`/api/v1/me/route${query}`);
+}
+
+/**
+ * Metricas comerciales del cliente de una parada (PCRM-164).
+ *
+ * Va por la parada y no por el cliente: `GET /customers/:id` es solo del
+ * Administrador, y esta ruta abre unicamente para paradas de la agenda del
+ * vendedor. En una parada de prospecto responde 422 -- no hay nada que medir.
+ */
+export function fetchStopCustomerMetrics(
+  stopId: string,
+  signal?: AbortSignal,
+): Promise<StopCustomerMetrics> {
+  return apiFetch<StopCustomerMetrics>(
+    `/api/v1/me/route/stops/${encodeURIComponent(stopId)}/customer`,
+    { signal },
+  );
 }
