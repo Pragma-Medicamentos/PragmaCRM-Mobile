@@ -102,6 +102,11 @@ export const StopNoteSheet = forwardRef<StopNoteSheetHandle, Props>(function Sto
       index={0}
       snapPoints={snapPoints}
       enablePanDownToClose
+      // `push` deja el detalle presentado debajo. Con el `switch` por defecto
+      // gorhom 5.2.14 minimiza el detalle y lo desmonta en vez de dejarlo
+      // minimizado (`onChange(-1)` llega antes que `onClose` y este ya no ve
+      // MINIMIZING), asi que al guardar no quedaba detalle al que volver.
+      stackBehavior="push"
       onChange={handleChange}
       keyboardBehavior="interactive"
       android_keyboardInputMode="adjustResize"
