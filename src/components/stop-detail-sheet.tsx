@@ -37,6 +37,8 @@ type Props = {
   settingLocation: boolean;
   /** Abre la hoja de nota (RF-07). Solo se ofrece en paradas completadas. */
   onEditNote: (stop: DailyRouteStop) => void;
+  /** Abre el formulario de producto fuera de catalogo (PCRM-66). */
+  onRegisterProduct: (stop: DailyRouteStop) => void;
 };
 
 export type StopDetailSheetHandle = ComponentRef<typeof BottomSheetModal>;
@@ -58,6 +60,7 @@ export const StopDetailSheet = forwardRef<StopDetailSheetHandle, Props>(function
     onSetLocation,
     settingLocation,
     onEditNote,
+    onRegisterProduct,
   },
   ref,
 ) {
@@ -152,6 +155,15 @@ export const StopDetailSheet = forwardRef<StopDetailSheetHandle, Props>(function
                   title={stop.notes ? 'Editar nota' : 'Agregar nota'}
                   variant="secondary"
                   onPress={() => onEditNote(stop)}
+                />
+              )}
+              {/* Solo con la visita validada: el registro se asocia a esa
+                  visita (HU-11 CA1) y antes de validarla no existe. */}
+              {stop.completed_at && (
+                <Button
+                  title="Producto fuera de catálogo"
+                  variant="secondary"
+                  onPress={() => onRegisterProduct(stop)}
                 />
               )}
               {stop.location && (

@@ -9,6 +9,10 @@ import {
   type ConfirmVisitSheetHandle,
 } from '@/components/confirm-visit-sheet';
 import { RouteMap, type RouteMapHandle } from '@/components/route-map';
+import {
+  ProductRequestSheet,
+  type ProductRequestSheetHandle,
+} from '@/components/product-request-sheet';
 import { StopDetailSheet, type StopDetailSheetHandle } from '@/components/stop-detail-sheet';
 import { StopNoteSheet, type StopNoteSheetHandle } from '@/components/stop-note-sheet';
 import { StopsSheet } from '@/components/stops-sheet';
@@ -43,6 +47,9 @@ export default function HomeScreen() {
   // de la hoja porque quien la abre es la tarjeta, que esta en la otra hoja.
   const [stopToValidate, setStopToValidate] = useState<DailyRouteStop | null>(null);
   const detailSheetRef = useRef<StopDetailSheetHandle>(null);
+  const productSheetRef = useRef<ProductRequestSheetHandle>(null);
+  // Igual que `stopToValidate`: la abre el detalle, que es otra hoja.
+  const [stopForProduct, setStopForProduct] = useState<DailyRouteStop | null>(null);
   // Se guarda el id y no la parada: la parada se re-deriva de la ruta en cada
   // render (ver `detailStop` abajo), asi el detalle abierto refleja el pin
   // recien fijado o la visita recien confirmada sin tener que cerrarlo.
@@ -192,6 +199,10 @@ export default function HomeScreen() {
           setNoteStopId(stop.id);
           noteSheetRef.current?.present();
         }}
+        onRegisterProduct={(stop) => {
+          setStopForProduct(stop);
+          productSheetRef.current?.present();
+        }}
       />
 
       {/* Apilada sobre el detalle: al guardar se cierra y el detalle, que se
@@ -203,6 +214,15 @@ export default function HomeScreen() {
           noteSheetRef.current?.dismiss();
           void loadRoute();
         }}
+      />
+
+      {/* Se presenta sobre el detalle con el stackBehavior 'switch' por defecto
+          (ver PCRM-189). `onDone` solo cierra esta hoja, que es la de arriba:
+          un dismiss() sobre una hoja desmontada la deja bloqueada. */}
+      <ProductRequestSheet
+        ref={productSheetRef}
+        stop={stopForProduct}
+        onDone={() => productSheetRef.current?.dismiss()}
       />
 
       {/*
