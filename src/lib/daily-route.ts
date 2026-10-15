@@ -82,6 +82,12 @@ export interface DailyRouteStop {
    * significa que la parada sigue pendiente.
    */
   completed_at: string | null;
+  /**
+   * `visit.notes` de esa misma ejecucion (RF-07). Null mientras la parada
+   * sigue pendiente o si el vendedor no dejo nota. Opcional porque un backend
+   * anterior a PCRM-55 no lo manda: se lee como `stop.notes ?? null`.
+   */
+  notes?: string | null;
 }
 
 export interface DailyRoute {
