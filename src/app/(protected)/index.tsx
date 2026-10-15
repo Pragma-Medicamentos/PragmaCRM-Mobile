@@ -1,4 +1,4 @@
-import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { BottomSheetModal, useBottomSheetModal } from '@gorhom/bottom-sheet';
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -32,6 +32,7 @@ export default function HomeScreen() {
   const profile = useAuthStore((state) => state.profile);
   const route = useRouteStore((state) => state.route);
   const loadRoute = useRouteStore((state) => state.loadRoute);
+  const { dismissAll } = useBottomSheetModal();
   // La hoja de paradas vive como componente (`stops-sheet.tsx`), no como ruta:
   // ver el comentario largo mas abajo, junto al boton que la abre.
   const stopsSheetRef = useRef<ComponentRef<typeof BottomSheetModal>>(null);
@@ -169,8 +170,13 @@ export default function HomeScreen() {
         stop={detailStop}
         currentLocation={location}
         onShowOnMap={(stop) => {
-          detailSheetRef.current?.dismiss();
-          stopsSheetRef.current?.dismiss();
+          // `dismissAll` y no `dismiss()` hoja por hoja (PCRM-189): solo
+          // recorre las hojas que gorhom tiene montadas. Al abrir el detalle,
+          // gorhom 5.2.14 desmonta la lista en vez de minimizarla, y un
+          // `dismiss()` sobre esa hoja ya desmontada la deja en `DISMISSING`
+          // para siempre: desde ahi ignora todo `present()` y "Ver paradas"
+          // dejaba de abrir.
+          dismissAll();
           routeMapRef.current?.focusStop(stop.id);
         }}
         onValidate={validateStop}
