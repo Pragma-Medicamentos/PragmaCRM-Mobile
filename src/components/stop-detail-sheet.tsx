@@ -7,6 +7,7 @@ import {
 import { forwardRef, useCallback, useMemo, type ComponentRef } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
+import { CustomerMetricsSection } from './customer-metrics-section';
 import { CustomerProfileRow } from './customer-profile-row';
 import { ProspectPill } from './prospect-pill';
 import { StopBadge } from './stop-badge';
@@ -46,7 +47,7 @@ export type StopDetailSheetHandle = ComponentRef<typeof BottomSheetModal>;
 /**
  * Detalle del cliente de una parada (PCRM-166): todo lo que muestra la tarjeta
  * mas la ficha -- nombre comercial, tipo de establecimiento, direccion,
- * municipio, zona, telefono y limite de credito.
+ * municipio, zona, telefono y limite de credito -- y sus metricas (PCRM-164).
  *
  * Se apila sobre la hoja de paradas, igual que la de validacion: al cerrarla
  * el vendedor vuelve a la lista, que es donde estaba.
@@ -142,6 +143,8 @@ export const StopDetailSheet = forwardRef<StopDetailSheetHandle, Props>(function
                 )}
               </View>
             )}
+
+            <CustomerMetricsSection stop={stop} />
 
             <View style={styles.actions}>
               <StopAction
