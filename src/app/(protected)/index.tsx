@@ -8,6 +8,7 @@ import {
   ConfirmVisitSheet,
   type ConfirmVisitSheetHandle,
 } from '@/components/confirm-visit-sheet';
+import { ProspectSheet, type ProspectSheetHandle } from '@/components/prospect-sheet';
 import { RouteMap, type RouteMapHandle } from '@/components/route-map';
 import {
   ProductRequestSheet,
@@ -50,6 +51,7 @@ export default function HomeScreen() {
   const productSheetRef = useRef<ProductRequestSheetHandle>(null);
   // Igual que `stopToValidate`: la abre el detalle, que es otra hoja.
   const [stopForProduct, setStopForProduct] = useState<DailyRouteStop | null>(null);
+  const prospectSheetRef = useRef<ProspectSheetHandle>(null);
   // Se guarda el id y no la parada: la parada se re-deriva de la ruta en cada
   // render (ver `detailStop` abajo), asi el detalle abierto refleja el pin
   // recien fijado o la visita recien confirmada sin tener que cerrarlo.
@@ -170,6 +172,7 @@ export default function HomeScreen() {
         }}
         onValidateStop={validateStop}
         onSetLocation={setLocation}
+        onRegisterProspect={() => prospectSheetRef.current?.present()}
         settingLocationId={settingLocationId}
       />
 
@@ -241,6 +244,17 @@ export default function HomeScreen() {
           // estado local ni adivinar como quedo la parada.
           void loadRoute();
         }}
+      />
+
+      {/*
+        Se apila sobre la hoja de paradas, igual que la de validacion: al
+        cerrar, el vendedor vuelve a la lista donde estaba. No refresca la
+        ruta -- un prospecto recien registrado no es una parada de hoy, lo
+        levanta el admin desde el panel web (PCRM-64).
+      */}
+      <ProspectSheet
+        ref={prospectSheetRef}
+        onDone={() => prospectSheetRef.current?.dismiss()}
       />
 
       <AppMenu visible={menuVisible} onClose={() => setMenuVisible(false)} />
