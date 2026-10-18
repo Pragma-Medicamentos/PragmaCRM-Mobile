@@ -16,7 +16,7 @@ import {
 } from '@/components/product-request-sheet';
 import { StopDetailSheet, type StopDetailSheetHandle } from '@/components/stop-detail-sheet';
 import { StopNoteSheet, type StopNoteSheetHandle } from '@/components/stop-note-sheet';
-import { StopsSheet } from '@/components/stops-sheet';
+import { StopsSheet, type StopsSheetState } from '@/components/stops-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,7 @@ export default function HomeScreen() {
   const profile = useAuthStore((state) => state.profile);
   const route = useRouteStore((state) => state.route);
   const loadRoute = useRouteStore((state) => state.loadRoute);
+  const refreshing = useRouteStore((state) => state.refreshing);
   const { dismissAll } = useBottomSheetModal();
   // La hoja de paradas vive como componente (`stops-sheet.tsx`), no como ruta:
   // ver el comentario largo mas abajo, junto al boton que la abre.
@@ -76,6 +77,14 @@ export default function HomeScreen() {
   }, [route.status, loadRoute]);
 
   const stops = route.status === 'ready' ? route.route.stops : NO_STOPS;
+  // `idle` cuenta como carga: el efecto de arriba la dispara en este mismo
+  // render, y la hoja no debe mostrar "(0)" mientras tanto.
+  const stopsSheetState: StopsSheetState =
+    route.status === 'ready'
+      ? { status: 'ready', stops }
+      : route.status === 'error'
+        ? { status: 'error', message: route.error.message }
+        : { status: 'loading' };
   const detailStop = stops.find((stop) => stop.id === detailStopId) ?? null;
   const noteStop = stops.find((stop) => stop.id === noteStopId) ?? null;
 
@@ -165,6 +174,11 @@ export default function HomeScreen() {
       {/* Tocar una tarjeta abre el detalle del cliente (PCRM-166). */}
       <StopsSheet
         ref={stopsSheetRef}
+        state={stopsSheetState}
+        title="Paradas de hoy"
+        emptyMessage="No tenés paradas asignadas hoy."
+        refreshing={refreshing}
+        onReload={() => void loadRoute()}
         currentLocation={location}
         onStopPress={(stop) => {
           setDetailStopId(stop.id);

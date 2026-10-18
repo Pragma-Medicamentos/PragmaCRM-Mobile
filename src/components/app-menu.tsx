@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -32,6 +33,7 @@ type MenuItem = {
 export function AppMenu({ visible, onClose }: Props) {
   const theme = useTheme();
   const signOut = useAuthStore((state) => state.signOut);
+  const router = useRouter();
 
   const items: MenuItem[] = [
     { key: 'ruta', icon: '🗺️', label: 'Ruta de hoy', onPress: onClose },
@@ -39,8 +41,12 @@ export function AppMenu({ visible, onClose }: Props) {
       key: 'calendario',
       icon: '📅',
       label: 'Calendario de rutas',
-      onPress: () => {},
-      disabled: true,
+      // PCRM-170. Se cierra el menu antes de empujar: el Modal queda por
+      // encima de cualquier pantalla del Stack mientras siga visible.
+      onPress: () => {
+        onClose();
+        router.push('/calendar');
+      },
     },
     {
       key: 'historial',
