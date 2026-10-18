@@ -91,6 +91,9 @@ export default function ProtectedLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={!mustSetPassword}>
         <Stack.Screen name="index" />
+        {/* PCRM-170: calendario de rutas y vista previa de un dia. */}
+        <Stack.Screen name="calendar/index" />
+        <Stack.Screen name="calendar/[day]" />
       </Stack.Protected>
 
       <Stack.Screen name="set-password" />

@@ -4,7 +4,7 @@ import {
   BottomSheetScrollView,
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet';
-import { forwardRef, useCallback, useEffect, useMemo, type ComponentRef } from 'react';
+import { forwardRef, useCallback, useMemo, type ComponentRef } from 'react';
 import { ActivityIndicator, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { StopCard } from './stop-card';
@@ -15,7 +15,16 @@ import { Spacing } from '@/constants/theme';
 import type { DailyRouteStop } from '@/lib/daily-route';
 import type { Coordinates } from '@/lib/distance';
 import { useTheme } from '@/hooks/use-theme';
-import { useRouteStore } from '@/stores/route-store';
+
+/**
+ * Lo que la hoja necesita saber de la carga, sin atarse a un store: la ruta
+ * de hoy (`route-store`) y la vista previa de un dia de la semana
+ * (`weekly-route-store`) la alimentan cada una desde el suyo.
+ */
+export type StopsSheetState =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; stops: DailyRouteStop[] };
 
 /**
  * Hoja de paradas, migrada de una ruta (`/stops` con `presentation: 'formSheet'`)
@@ -28,7 +37,19 @@ import { useRouteStore } from '@/stores/route-store';
  * este tamaño.
  */
 type Props = {
-  /** Misma lectura que el mapa. Esta hoja no abre otro watcher. */
+  state: StopsSheetState;
+  /** Encabezado sin el conteo, p. ej. "Paradas de hoy". */
+  title: string;
+  /** Texto cuando la lista llega vacia. */
+  emptyMessage: string;
+  /** Pull-to-refresh en curso (aparte de `state`, ver `route-store.ts`). */
+  refreshing: boolean;
+  /** Pull-to-refresh y el boton "Reintentar" del error. */
+  onReload: () => void;
+  /**
+   * Misma lectura que el mapa. Esta hoja no abre otro watcher. Null en la
+   * vista previa de un dia futuro: sin GPS, la tarjeta muestra solo la zona.
+   */
   currentLocation: Coordinates | null;
   /** Se llama al tocar cualquier tarjeta: abre el detalle del cliente. */
   onStopPress?: (stop: DailyRouteStop) => void;
@@ -41,29 +62,28 @@ type Props = {
 };
 
 export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>, Props>(function StopsSheet(
-  { currentLocation, onStopPress, onValidateStop, onSetLocation, settingLocationId },
+  {
+    state,
+    title,
+    emptyMessage,
+    refreshing,
+    onReload,
+    currentLocation,
+    onStopPress,
+    onValidateStop,
+    onSetLocation,
+    settingLocationId,
+  },
   ref,
 ) {
   const theme = useTheme();
-  const route = useRouteStore((state) => state.route);
-  const refreshing = useRouteStore((state) => state.refreshing);
-  const loadRoute = useRouteStore((state) => state.loadRoute);
-
-  // `idle` solo pasa por el primer render de la app (antes de que
-  // (protected)/index.tsx dispare `loadRoute()` al montar). Se repite el
-  // mismo patron aca en vez de asumir que la otra pantalla ya la pidio, para
-  // que esta hoja tambien funcione si en el futuro se abre desde otro lugar.
-  useEffect(() => {
-    if (route.status === 'idle') void loadRoute();
-  }, [route.status, loadRoute]);
 
   const snapPoints = useMemo(() => ['68%'], []);
 
   // El conteo del encabezado no se puede calcular fuera de `ready`: mostrar
   // "(0)" mientras todavia esta cargando o mientras fallo es la misma mentira
   // de fondo vacio que R11 corrige mas abajo, solo que en miniatura.
-  const headerLabel =
-    route.status === 'ready' ? `Paradas de hoy (${route.route.stops.length})` : 'Paradas de hoy';
+  const headerLabel = state.status === 'ready' ? `${title} (${state.stops.length})` : title;
 
   // Mismo grabber armado a mano que tenia `stops.tsx`: `handleIndicatorStyle`
   // de gorhom es un solo elemento y no alcanza para reproducir el borde
@@ -113,14 +133,14 @@ export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>, Prop
         <ThemedText type="default">{headerLabel}</ThemedText>
       </View>
 
-      {route.status === 'idle' || route.status === 'pending' ? (
+      {state.status === 'loading' ? (
         // Mismo componente que `_layout.tsx` usa para su propia carga
         // (`ActivityIndicator` centrado, sin texto): la primera carga de la
         // ruta es la misma clase de espera con red que la del perfil.
         <View style={styles.centered}>
           <ActivityIndicator />
         </View>
-      ) : route.status === 'error' ? (
+      ) : state.status === 'error' ? (
         // Mismo par "mensaje + reintentar" que `access-denied.tsx`, pero sin
         // reusar el componente entero: `AccessDenied` es una pantalla
         // completa con su propio `SafeAreaView` y un boton de cerrar sesion
@@ -131,29 +151,27 @@ export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>, Prop
             No se pudo cargar la ruta
           </ThemedText>
           <ThemedText themeColor="textSecondary" style={styles.centeredText}>
-            {route.error.message}
+            {state.message}
           </ThemedText>
-          <Button title="Reintentar" onPress={() => void loadRoute()} />
+          <Button title="Reintentar" onPress={onReload} />
         </View>
       ) : (
         <BottomSheetScrollView
-          contentContainerStyle={route.route.stops.length === 0 ? styles.empty : styles.list}
+          contentContainerStyle={state.stops.length === 0 ? styles.empty : styles.list}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => {
-                void loadRoute();
-              }}
+              onRefresh={onReload}
               tintColor={theme.tint}
               colors={[theme.tint]}
             />
           }>
-          {route.route.stops.length === 0 ? (
+          {state.stops.length === 0 ? (
             <ThemedText themeColor="textSecondary" style={styles.emptyText}>
-              No tenés paradas asignadas hoy.
+              {emptyMessage}
             </ThemedText>
           ) : (
-            route.route.stops.map((stop) => (
+            state.stops.map((stop) => (
               <StopCard
                 key={stop.id}
                 stop={stop}
