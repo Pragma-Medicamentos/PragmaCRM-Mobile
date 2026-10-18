@@ -55,7 +55,12 @@ const CURRENCY = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 });
 
+/** `$1,500.00`. */
+export function formatUsd(value: number): string {
+  return CURRENCY.format(value);
+}
+
 /** `$1,500.00`, o null si el cliente no tiene limite cargado. */
 export function formatCreditLimit(value: number | null): string | null {
-  return value === null ? null : CURRENCY.format(value);
+  return value === null ? null : formatUsd(value);
 }
