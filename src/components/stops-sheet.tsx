@@ -5,7 +5,7 @@ import {
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet';
 import { forwardRef, useCallback, useEffect, useMemo, type ComponentRef } from 'react';
-import { ActivityIndicator, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { StopCard } from './stop-card';
 import { ThemedText } from './themed-text';
@@ -36,12 +36,14 @@ type Props = {
   onValidateStop?: (stop: DailyRouteStop) => void;
   /** Se llama desde el boton "Establecer ubicación" (cliente sin pin). */
   onSetLocation?: (stop: DailyRouteStop) => void;
+  /** Se llama desde "+ Prospecto": abre el alta de prospecto (PCRM-175). */
+  onRegisterProspect?: () => void;
   /** La parada cuyo pin se esta fijando, para el spinner de su boton. */
   settingLocationId?: string | null;
 };
 
 export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>, Props>(function StopsSheet(
-  { currentLocation, onStopPress, onValidateStop, onSetLocation, settingLocationId },
+  { currentLocation, onStopPress, onValidateStop, onSetLocation, onRegisterProspect, settingLocationId },
   ref,
 ) {
   const theme = useTheme();
@@ -110,7 +112,34 @@ export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>, Prop
       backdropComponent={renderBackdrop}
       backgroundStyle={[styles.background, { backgroundColor: theme.background }]}>
       <View style={[styles.header, { borderBottomColor: theme.backgroundSelected }]}>
-        <ThemedText type="default">{headerLabel}</ThemedText>
+        <ThemedText type="default" numberOfLines={1} style={styles.headerLabel}>
+          {headerLabel}
+        </ThemedText>
+
+        {/* El alta de prospecto vive aca y no en el menu (PCRM-175): el
+            vendedor abre esta hoja estando parado en la farmacia, que es el
+            unico momento en que el GPS del registro vale. Dice "Prospecto" y
+            no "Registrar prospecto" porque con el conteo largo ("(12)") la
+            frase completa empuja al titulo contra el borde en un telefono de
+            360 px. */}
+        {onRegisterProspect && (
+          <Pressable
+            onPress={onRegisterProspect}
+            accessibilityRole="button"
+            accessibilityLabel="Registrar un prospecto"
+            style={({ pressed }) => [
+              styles.prospectButton,
+              {
+                borderColor: theme.backgroundSelected,
+                backgroundColor: theme.backgroundElement,
+              },
+              pressed && styles.pressed,
+            ]}>
+            <ThemedText type="smallBold" style={{ color: theme.tint }}>
+              + Prospecto
+            </ThemedText>
+          </Pressable>
+        )}
       </View>
 
       {route.status === 'idle' || route.status === 'pending' ? (
@@ -189,9 +218,25 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.half,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
     paddingHorizontal: Spacing.three,
     paddingBottom: Spacing.two,
     borderBottomWidth: 1,
+  },
+  headerLabel: {
+    flexShrink: 1,
+  },
+  prospectButton: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+    borderWidth: 1,
+    borderRadius: 999,
+  },
+  pressed: {
+    opacity: 0.7,
   },
   list: {
     gap: Spacing.two,
