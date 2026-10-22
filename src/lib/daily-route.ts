@@ -89,6 +89,14 @@ export interface DailyRouteStop {
    * anterior a PCRM-55 no lo manda: se lee como `stop.notes ?? null`.
    */
   notes?: string | null;
+  /**
+   * Donde estaba el vendedor al marcar la parada (`visit.checkin_location`,
+   * RF-06). Null mientras sigue pendiente. Opcional porque un backend anterior
+   * a PCRM-203 no lo manda.
+   */
+  checkin_location?: Coordinates | null;
+  /** Metros de ese punto al pin del cliente (`visit.distance_meters`). */
+  distance_meters?: number | null;
 }
 
 export interface DailyRoute {

@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { Colors } from '@/constants/theme';
 import { initAuth, useAuthStore } from '@/stores/auth-store';
+import { initRouteHistory } from '@/stores/route-history-store';
 import { initRoute } from '@/stores/route-store';
 import { initWeeklyRoute } from '@/stores/weekly-route-store';
 
@@ -39,6 +40,7 @@ export default function RootLayout() {
     initAuth();
     initRoute();
     initWeeklyRoute();
+    initRouteHistory();
   }, []);
 
   return (
