@@ -15,6 +15,10 @@ const MESSAGES: Record<string, string> = {
   same_password: 'La nueva contraseña debe ser distinta a la actual.',
   weak_password: 'La contraseña es demasiado débil. Usa al menos 8 caracteres.',
   session_expired: 'Tu sesión expiró. Inicia sesión de nuevo.',
+  session_not_found: 'Tu sesión expiró. Inicia sesión de nuevo.',
+  bad_jwt: 'Tu sesión expiró. Inicia sesión de nuevo.',
+  reauthentication_needed:
+    'Por seguridad, cierra sesión y vuelve a entrar antes de cambiar la contraseña.',
 
   // Codigo de un solo uso.
   otp_expired: 'El código expiró o no es correcto. Solicita uno nuevo.',
@@ -26,6 +30,9 @@ export function toSpanishAuthMessage(error: AuthError | null): string | undefine
   if (!error) return undefined;
 
   if (error.code && MESSAGES[error.code]) return MESSAGES[error.code];
+
+  // `updateUser` sin sesion guardada falla del lado del cliente, sin codigo.
+  if (error.name === 'AuthSessionMissingError') return MESSAGES.session_expired;
 
   // supabase-js mete en `AuthRetryableFetchError` dos cosas muy distintas: los
   // fallos de red reales (status 0) y cualquier respuesta 5xx del servidor. Hay

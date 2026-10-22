@@ -55,8 +55,18 @@ export function AppMenu({ visible, onClose }: Props) {
       onPress: () => {},
       disabled: true,
     },
-    { key: 'perfil', icon: '👤', label: 'Mi perfil', onPress: () => {}, disabled: true },
-    { key: 'ajustes', icon: '⚙️', label: 'Ajustes', onPress: () => {}, disabled: true },
+    {
+      key: 'perfil',
+      icon: '👤',
+      label: 'Mi perfil',
+      onPress: () => {
+        onClose();
+        router.push('/profile');
+      },
+    },
+    // PCRM-204: sin "Ajustes" (wireframe 13), por decision del PO. Permisos se
+    // gestionan desde el sistema operativo, solo hay tema claro, no hay push,
+    // y cambiar la contraseña vive en Mi perfil.
   ];
 
   return (
@@ -105,11 +115,10 @@ export function AppMenu({ visible, onClose }: Props) {
           </View>
 
           {/*
-            "Cerrar sesión" no esta en el wireframe 9 -- ahi vive en Ajustes
-            (pantalla 11), que todavia no existe. Se queda en este menu como
-            desviacion deliberada: hoy es el unico `signOut()` de la app, asi
-            que sacarlo sin esa pantalla lista dejaria un build sin salida.
-            Mover a Ajustes cuando esa pantalla se construya.
+            "Cerrar sesión" no esta en el wireframe 9 -- ahi vivia en Ajustes,
+            que se descarto (PCRM-204). Se queda en este menu de forma
+            definitiva: es el unico `signOut()` de la app fuera de
+            `set-password`.
           */}
           <View style={styles.signOut}>
             <Button

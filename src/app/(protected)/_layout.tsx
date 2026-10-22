@@ -94,6 +94,9 @@ export default function ProtectedLayout() {
         {/* PCRM-170: calendario de rutas y vista previa de un dia. */}
         <Stack.Screen name="calendar/index" />
         <Stack.Screen name="calendar/[day]" />
+        {/* PCRM-204: Mi perfil y cambio de contraseña. */}
+        <Stack.Screen name="profile" />
+        <Stack.Screen name="change-password" />
       </Stack.Protected>
 
       <Stack.Screen name="set-password" />
