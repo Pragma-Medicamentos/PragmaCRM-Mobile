@@ -52,8 +52,11 @@ export function AppMenu({ visible, onClose }: Props) {
       key: 'historial',
       icon: '🕘',
       label: 'Historial de rutas',
-      onPress: () => {},
-      disabled: true,
+      // PCRM-203.
+      onPress: () => {
+        onClose();
+        router.push('/history');
+      },
     },
     { key: 'perfil', icon: '👤', label: 'Mi perfil', onPress: () => {}, disabled: true },
     { key: 'ajustes', icon: '⚙️', label: 'Ajustes', onPress: () => {}, disabled: true },

@@ -94,6 +94,9 @@ export default function ProtectedLayout() {
         {/* PCRM-170: calendario de rutas y vista previa de un dia. */}
         <Stack.Screen name="calendar/index" />
         <Stack.Screen name="calendar/[day]" />
+        {/* PCRM-203: historial de rutas y detalle de un dia pasado. */}
+        <Stack.Screen name="history/index" />
+        <Stack.Screen name="history/[day]" />
       </Stack.Protected>
 
       <Stack.Screen name="set-password" />
