@@ -40,7 +40,8 @@
         {
           "locationWhenInUsePermission": "Permití que PragmaCRM-Mobile use tu ubicación para ubicarte en el mapa de la ruta del día."
         }
-      ]
+      ],
+      "./plugins/with-release-signing"
     ],
     "experiments": {
       "typedRoutes": true,
