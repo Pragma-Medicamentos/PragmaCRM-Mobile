@@ -97,6 +97,9 @@ export default function ProtectedLayout() {
         {/* PCRM-203: historial de rutas y detalle de un dia pasado. */}
         <Stack.Screen name="history/index" />
         <Stack.Screen name="history/[day]" />
+        {/* PCRM-204: Mi perfil y cambio de contraseña. */}
+        <Stack.Screen name="profile" />
+        <Stack.Screen name="change-password" />
       </Stack.Protected>
 
       <Stack.Screen name="set-password" />
