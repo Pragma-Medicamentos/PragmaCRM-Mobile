@@ -46,6 +46,7 @@ interface AuthStore {
   requestOtp: (email: string) => Promise<string | undefined>;
   verifyOtp: (email: string, token: string, isReset: boolean) => Promise<string | undefined>;
   completePasswordSetup: (password: string) => Promise<string | undefined>;
+  changePassword: (password: string) => Promise<string | undefined>;
   signOut: () => Promise<void>;
   loadProfile: () => Promise<void>;
 }
@@ -117,6 +118,17 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     set({ passwordSetup: 'done' });
     await get().loadProfile();
     return undefined;
+  },
+
+  async changePassword(password) {
+    // Cambio voluntario desde Mi perfil (PCRM-204). A diferencia de
+    // `completePasswordSetup`, `same_password` si es un error: el vendedor
+    // eligio cambiarla y repetir la actual no cambia nada.
+    //
+    // No se relee el perfil: `passwordSetAt` ya tenia fecha, y pasar el perfil
+    // por `pending` desmontaria el Stack protegido con esta pantalla encima.
+    const { error } = await supabase.auth.updateUser({ password });
+    return toSpanishAuthMessage(error);
   },
 
   async signOut() {

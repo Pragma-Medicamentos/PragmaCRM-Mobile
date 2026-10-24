@@ -1,8 +1,10 @@
+import { AppState } from 'react-native';
 import { create } from 'zustand';
 
 import { ApiError } from '@/lib/api';
 import { fetchDailyRoute, type DailyRoute } from '@/lib/daily-route';
 import { isSessionUnauthorized } from '@/lib/request-config';
+import { shouldReloadOnResume } from '@/lib/route-refresh';
 import { useAuthStore } from '@/stores/auth-store';
 
 /**
@@ -21,6 +23,12 @@ interface RouteStore {
   route: RouteState;
   /** Aparte del union de arriba a proposito: ver el comentario de RouteState. */
   refreshing: boolean;
+  /**
+   * `Date.now()` de la ultima carga exitosa, o null si no hay ninguna. Solo
+   * lo usa la recarga al volver al frente (ver `initRoute`). Un refresh
+   * fallido no lo toca, asi el siguiente regreso al frente lo reintenta.
+   */
+  loadedAt: number | null;
   /** Devuelve un mensaje en español si falló, o undefined si funcionó. */
   loadRoute: (date?: string) => Promise<string | undefined>;
 }
@@ -28,6 +36,7 @@ interface RouteStore {
 export const useRouteStore = create<RouteStore>((set, get) => ({
   route: { status: 'idle' },
   refreshing: false,
+  loadedAt: null,
 
   async loadRoute(date) {
     const alreadyLoaded = get().route.status === 'ready';
@@ -39,7 +48,7 @@ export const useRouteStore = create<RouteStore>((set, get) => ({
 
     try {
       const route = await fetchDailyRoute(date);
-      set({ route: { status: 'ready', route }, refreshing: false });
+      set({ route: { status: 'ready', route }, refreshing: false, loadedAt: Date.now() });
       return undefined;
     } catch (error) {
       const apiError =
@@ -96,7 +105,29 @@ export function initRoute(): void {
     // sign-out o cambio de vendedor que initAuth ya calculo.
     const justWentIdle = previous.profile.status !== 'idle' && state.profile.status === 'idle';
     if (justWentIdle) {
-      useRouteStore.setState({ route: { status: 'idle' }, refreshing: false });
+      useRouteStore.setState({ route: { status: 'idle' }, refreshing: false, loadedAt: null });
     }
+  });
+
+  // La pantalla principal solo pide la ruta en `idle`, y el store vive en
+  // memoria: si la app queda en segundo plano al cruzar la medianoche, al
+  // volver seguiria mostrando las paradas de ayer (PCRM-195). Volver al frente
+  // es la senal para revisar. No se usa un setInterval ni un timer apuntado a
+  // la medianoche porque con la app en segundo plano Android los congela
+  // (doze) y no dispararian a tiempo; el resume siempre llega.
+  AppState.addEventListener('change', (appState) => {
+    if (appState !== 'active') return;
+    const { route, refreshing, loadedAt, loadRoute } = useRouteStore.getState();
+    // Solo sobre una ruta ya en pantalla: la primera carga y sus errores los
+    // maneja la pantalla principal. Si ya hay un refresh en vuelo, no se pisa.
+    if (route.status !== 'ready' || refreshing) return;
+    if (!shouldReloadOnResume(loadedAt, Date.now())) return;
+    // Sin fecha a proposito: el backend resuelve "hoy" en America/El_Salvador
+    // y el `date` de la respuesta reemplaza el del store, asi el cruce de
+    // medianoche se corrige solo. Mandar la ruta cargada (`route.route.date`)
+    // volveria a pedir el dia viejo, y calcular la fecha en el telefono
+    // dependeria de su reloj y su zona horaria. Como la ruta ya esta `ready`,
+    // loadRoute usa `refreshing` y no desmonta el mapa ni la lista.
+    void loadRoute();
   });
 }
