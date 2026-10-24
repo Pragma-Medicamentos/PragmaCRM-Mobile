@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api';
+import type { StopCustomerMetrics } from '@/lib/customer-metrics';
 import type { Coordinates } from '@/lib/distance';
 
 /** Clasificacion de la parada (CLAUDE.md 5.2 del repo de la API). */
@@ -48,6 +49,19 @@ export interface DailyRouteStop {
   municipality: string | null;
   phone: string | null;
   /**
+   * Personalidad del cliente (RF-12) como color en minusculas: `rojo`,
+   * `amarillo`, `verde` o `azul`. Es texto libre en la base, asi que se lee
+   * siempre a traves de `personalityKey` (ver `customer-profile.ts`). Siempre
+   * null en prospectos: esa tabla no tiene la columna.
+   */
+  personality: string | null;
+  /** Potencial de compra (RF-12): `alto`, `medio` o `bajo`. Null en prospectos. */
+  potential: string | null;
+  /** Null en prospectos. */
+  establishment_type: string | null;
+  /** `customer.credit_limit`, en dolares. Null en prospectos. */
+  credit_limit: number | null;
+  /**
    * Null cuando el destino no tiene GPS cargado, un caso real y frecuente (la
    * lista de clientes tiene un filtro `without_gps`). El conteo de pines va a
    * diferir del conteo de paradas por diseno, y la tarjeta degrada a mostrar
@@ -69,6 +83,20 @@ export interface DailyRouteStop {
    * significa que la parada sigue pendiente.
    */
   completed_at: string | null;
+  /**
+   * `visit.notes` de esa misma ejecucion (RF-07). Null mientras la parada
+   * sigue pendiente o si el vendedor no dejo nota. Opcional porque un backend
+   * anterior a PCRM-55 no lo manda: se lee como `stop.notes ?? null`.
+   */
+  notes?: string | null;
+  /**
+   * Donde estaba el vendedor al marcar la parada (`visit.checkin_location`,
+   * RF-06). Null mientras sigue pendiente. Opcional porque un backend anterior
+   * a PCRM-203 no lo manda.
+   */
+  checkin_location?: Coordinates | null;
+  /** Metros de ese punto al pin del cliente (`visit.distance_meters`). */
+  distance_meters?: number | null;
 }
 
 export interface DailyRoute {
@@ -99,4 +127,21 @@ export interface DailyRoute {
 export function fetchDailyRoute(date?: string): Promise<DailyRoute> {
   const query = date ? `?date=${encodeURIComponent(date)}` : '';
   return apiFetch<DailyRoute>(`/api/v1/me/route${query}`);
+}
+
+/**
+ * Metricas comerciales del cliente de una parada (PCRM-164).
+ *
+ * Va por la parada y no por el cliente: `GET /customers/:id` es solo del
+ * Administrador, y esta ruta abre unicamente para paradas de la agenda del
+ * vendedor. En una parada de prospecto responde 422 -- no hay nada que medir.
+ */
+export function fetchStopCustomerMetrics(
+  stopId: string,
+  signal?: AbortSignal,
+): Promise<StopCustomerMetrics> {
+  return apiFetch<StopCustomerMetrics>(
+    `/api/v1/me/route/stops/${encodeURIComponent(stopId)}/customer`,
+    { signal },
+  );
 }

@@ -1,4 +1,4 @@
-import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { BottomSheetModal, useBottomSheetModal } from '@gorhom/bottom-sheet';
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,13 +8,21 @@ import {
   ConfirmVisitSheet,
   type ConfirmVisitSheetHandle,
 } from '@/components/confirm-visit-sheet';
+import { ProspectSheet, type ProspectSheetHandle } from '@/components/prospect-sheet';
 import { RouteMap, type RouteMapHandle } from '@/components/route-map';
-import { StopsSheet } from '@/components/stops-sheet';
+import {
+  ProductRequestSheet,
+  type ProductRequestSheetHandle,
+} from '@/components/product-request-sheet';
+import { StopDetailSheet, type StopDetailSheetHandle } from '@/components/stop-detail-sheet';
+import { StopNoteSheet, type StopNoteSheetHandle } from '@/components/stop-note-sheet';
+import { StopsSheet, type StopsSheetState } from '@/components/stops-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
 import { Spacing } from '@/constants/theme';
 import { useDeviceLocation } from '@/hooks/use-device-location';
+import { useSetStopLocation } from '@/hooks/use-set-stop-location';
 import { useTheme } from '@/hooks/use-theme';
 import type { DailyRouteStop } from '@/lib/daily-route';
 import { buildGoogleMapsLink } from '@/lib/google-maps-link';
@@ -30,6 +38,8 @@ export default function HomeScreen() {
   const profile = useAuthStore((state) => state.profile);
   const route = useRouteStore((state) => state.route);
   const loadRoute = useRouteStore((state) => state.loadRoute);
+  const refreshing = useRouteStore((state) => state.refreshing);
+  const { dismissAll } = useBottomSheetModal();
   // La hoja de paradas vive como componente (`stops-sheet.tsx`), no como ruta:
   // ver el comentario largo mas abajo, junto al boton que la abre.
   const stopsSheetRef = useRef<ComponentRef<typeof BottomSheetModal>>(null);
@@ -38,6 +48,20 @@ export default function HomeScreen() {
   // La parada que la hoja de validacion esta confirmando. Vive aca y no dentro
   // de la hoja porque quien la abre es la tarjeta, que esta en la otra hoja.
   const [stopToValidate, setStopToValidate] = useState<DailyRouteStop | null>(null);
+  const detailSheetRef = useRef<StopDetailSheetHandle>(null);
+  const productSheetRef = useRef<ProductRequestSheetHandle>(null);
+  // Igual que `stopToValidate`: la abre el detalle, que es otra hoja.
+  const [stopForProduct, setStopForProduct] = useState<DailyRouteStop | null>(null);
+  const prospectSheetRef = useRef<ProspectSheetHandle>(null);
+  // Se guarda el id y no la parada: la parada se re-deriva de la ruta en cada
+  // render (ver `detailStop` abajo), asi el detalle abierto refleja el pin
+  // recien fijado o la visita recien confirmada sin tener que cerrarlo.
+  const [detailStopId, setDetailStopId] = useState<string | null>(null);
+  const noteSheetRef = useRef<StopNoteSheetHandle>(null);
+  // Por id, igual que el detalle: la hoja de nota lee `notes` de la parada
+  // ya refrescada.
+  const [noteStopId, setNoteStopId] = useState<string | null>(null);
+  const { settingLocationId, setLocation } = useSetStopLocation(loadRoute);
   // Un solo watcher. La hoja de paradas recibe esta misma lectura.
   const { location } = useDeviceLocation();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -53,6 +77,21 @@ export default function HomeScreen() {
   }, [route.status, loadRoute]);
 
   const stops = route.status === 'ready' ? route.route.stops : NO_STOPS;
+  // `idle` cuenta como carga: el efecto de arriba la dispara en este mismo
+  // render, y la hoja no debe mostrar "(0)" mientras tanto.
+  const stopsSheetState: StopsSheetState =
+    route.status === 'ready'
+      ? { status: 'ready', stops }
+      : route.status === 'error'
+        ? { status: 'error', message: route.error.message }
+        : { status: 'loading' };
+  const detailStop = stops.find((stop) => stop.id === detailStopId) ?? null;
+  const noteStop = stops.find((stop) => stop.id === noteStopId) ?? null;
+
+  const validateStop = (stop: DailyRouteStop) => {
+    setStopToValidate(stop);
+    confirmSheetRef.current?.present();
+  };
   const stopCount = route.status === 'ready' ? stops.length : null;
   // null cuando no queda ninguna parada pendiente con GPS (ruta sin cargar,
   // sin GPS, o todas visitadas) -- sin nada que enlazar, el boton de Google
@@ -132,22 +171,75 @@ export default function HomeScreen() {
         </View>
       </SafeAreaView>
 
-      {/*
-        Tocar una tarjeta cierra la hoja, centra el mapa en esa parada y abre
-        la etiqueta con su nombre: con la hoja al 68% el pin quedaria tapado
-        si solo se moviera la camara.
-      */}
+      {/* Tocar una tarjeta abre el detalle del cliente (PCRM-166). */}
       <StopsSheet
         ref={stopsSheetRef}
+        state={stopsSheetState}
+        title="Paradas de hoy"
+        emptyMessage="No tenés paradas asignadas hoy."
+        refreshing={refreshing}
+        onReload={() => void loadRoute()}
         currentLocation={location}
         onStopPress={(stop) => {
-          stopsSheetRef.current?.dismiss();
+          setDetailStopId(stop.id);
+          detailSheetRef.current?.present();
+        }}
+        onValidateStop={validateStop}
+        onSetLocation={setLocation}
+        onRegisterProspect={() => prospectSheetRef.current?.present()}
+        settingLocationId={settingLocationId}
+      />
+
+      {/*
+        "Ver en el mapa" cierra las dos hojas, centra el mapa en esa parada y
+        abre la etiqueta con su nombre: con una hoja abierta el pin quedaria
+        tapado si solo se moviera la camara.
+      */}
+      <StopDetailSheet
+        ref={detailSheetRef}
+        stop={detailStop}
+        currentLocation={location}
+        onShowOnMap={(stop) => {
+          // `dismissAll` y no `dismiss()` hoja por hoja (PCRM-189): solo
+          // recorre las hojas que gorhom tiene montadas. Al abrir el detalle,
+          // gorhom 5.2.14 desmonta la lista en vez de minimizarla, y un
+          // `dismiss()` sobre esa hoja ya desmontada la deja en `DISMISSING`
+          // para siempre: desde ahi ignora todo `present()` y "Ver paradas"
+          // dejaba de abrir.
+          dismissAll();
           routeMapRef.current?.focusStop(stop.id);
         }}
-        onValidateStop={(stop) => {
-          setStopToValidate(stop);
-          confirmSheetRef.current?.present();
+        onValidate={validateStop}
+        onSetLocation={setLocation}
+        settingLocation={detailStop !== null && settingLocationId === detailStop.id}
+        onEditNote={(stop) => {
+          setNoteStopId(stop.id);
+          noteSheetRef.current?.present();
         }}
+        onRegisterProduct={(stop) => {
+          setStopForProduct(stop);
+          productSheetRef.current?.present();
+        }}
+      />
+
+      {/* Apilada sobre el detalle: al guardar se cierra y el detalle, que se
+          re-deriva de la ruta refrescada, ya muestra la nota nueva. */}
+      <StopNoteSheet
+        ref={noteSheetRef}
+        stop={noteStop}
+        onSaved={() => {
+          noteSheetRef.current?.dismiss();
+          void loadRoute();
+        }}
+      />
+
+      {/* Se presenta sobre el detalle con el stackBehavior 'switch' por defecto
+          (ver PCRM-189). `onDone` solo cierra esta hoja, que es la de arriba:
+          un dismiss() sobre una hoja desmontada la deja bloqueada. */}
+      <ProductRequestSheet
+        ref={productSheetRef}
+        stop={stopForProduct}
+        onDone={() => productSheetRef.current?.dismiss()}
       />
 
       {/*
@@ -166,6 +258,17 @@ export default function HomeScreen() {
           // estado local ni adivinar como quedo la parada.
           void loadRoute();
         }}
+      />
+
+      {/*
+        Se apila sobre la hoja de paradas, igual que la de validacion: al
+        cerrar, el vendedor vuelve a la lista donde estaba. No refresca la
+        ruta -- un prospecto recien registrado no es una parada de hoy, lo
+        levanta el admin desde el panel web (PCRM-64).
+      */}
+      <ProspectSheet
+        ref={prospectSheetRef}
+        onDone={() => prospectSheetRef.current?.dismiss()}
       />
 
       <AppMenu visible={menuVisible} onClose={() => setMenuVisible(false)} />

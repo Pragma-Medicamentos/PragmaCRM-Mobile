@@ -44,6 +44,34 @@ export function isVisitable(
 }
 
 /**
+ * Si la parada necesita que el vendedor le fije el pin antes de poder
+ * validarla (PCRM-160).
+ *
+ * Es el complemento exacto de la tercera negativa de `isVisitable`: un cliente
+ * pendiente sin pin. Los prospectos quedan afuera por la misma razon que alla
+ * -- aunque se les fijara ubicacion, la visita igual no se puede ejecutar.
+ */
+export function needsLocation(
+  stop: Pick<DailyRouteStop, 'target_kind' | 'completed_at' | 'location'>,
+): boolean {
+  return stop.target_kind === 'customer' && stop.completed_at === null && stop.location === null;
+}
+
+/**
+ * Si una lectura sirve para fijar el pin de un cliente.
+ *
+ * Mas estricta que la de la visita: el pin se escribe una sola vez y el
+ * vendedor no lo puede corregir, y todas las visitas futuras se validan contra
+ * el. Una lectura peor que el propio radio podria dejar el pin fuera del
+ * circulo donde el vendedor despues tiene que pararse. Sin precision informada
+ * tampoco alcanza: no hay forma de saber cuanto se equivoca. El servidor
+ * aplica la misma regla.
+ */
+export function isPreciseEnoughToPin(accuracyMeters: number | null): boolean {
+  return accuracyMeters !== null && accuracyMeters <= GPS_RADIUS_METERS;
+}
+
+/**
  * Lo que devuelve pedirle la ubicacion al dispositivo.
  *
  * El tipo vive aca, en lib, y no en el hook, para que la compuerta se pueda

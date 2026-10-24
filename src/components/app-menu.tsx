@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -32,6 +33,7 @@ type MenuItem = {
 export function AppMenu({ visible, onClose }: Props) {
   const theme = useTheme();
   const signOut = useAuthStore((state) => state.signOut);
+  const router = useRouter();
 
   const items: MenuItem[] = [
     { key: 'ruta', icon: '🗺️', label: 'Ruta de hoy', onPress: onClose },
@@ -39,18 +41,35 @@ export function AppMenu({ visible, onClose }: Props) {
       key: 'calendario',
       icon: '📅',
       label: 'Calendario de rutas',
-      onPress: () => {},
-      disabled: true,
+      // PCRM-170. Se cierra el menu antes de empujar: el Modal queda por
+      // encima de cualquier pantalla del Stack mientras siga visible.
+      onPress: () => {
+        onClose();
+        router.push('/calendar');
+      },
     },
     {
       key: 'historial',
       icon: '🕘',
       label: 'Historial de rutas',
-      onPress: () => {},
-      disabled: true,
+      // PCRM-203.
+      onPress: () => {
+        onClose();
+        router.push('/history');
+      },
     },
-    { key: 'perfil', icon: '👤', label: 'Mi perfil', onPress: () => {}, disabled: true },
-    { key: 'ajustes', icon: '⚙️', label: 'Ajustes', onPress: () => {}, disabled: true },
+    {
+      key: 'perfil',
+      icon: '👤',
+      label: 'Mi perfil',
+      onPress: () => {
+        onClose();
+        router.push('/profile');
+      },
+    },
+    // PCRM-204: sin "Ajustes" (wireframe 13), por decision del PO. Permisos se
+    // gestionan desde el sistema operativo, solo hay tema claro, no hay push,
+    // y cambiar la contraseña vive en Mi perfil.
   ];
 
   return (
@@ -99,11 +118,10 @@ export function AppMenu({ visible, onClose }: Props) {
           </View>
 
           {/*
-            "Cerrar sesión" no esta en el wireframe 9 -- ahi vive en Ajustes
-            (pantalla 11), que todavia no existe. Se queda en este menu como
-            desviacion deliberada: hoy es el unico `signOut()` de la app, asi
-            que sacarlo sin esa pantalla lista dejaria un build sin salida.
-            Mover a Ajustes cuando esa pantalla se construya.
+            "Cerrar sesión" no esta en el wireframe 9 -- ahi vivia en Ajustes,
+            que se descarto (PCRM-204). Se queda en este menu de forma
+            definitiva: es el unico `signOut()` de la app fuera de
+            `set-password`.
           */}
           <View style={styles.signOut}>
             <Button
