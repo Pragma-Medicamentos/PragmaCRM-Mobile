@@ -2,11 +2,11 @@ import { Image } from 'expo-image';
 import { StyleSheet } from 'react-native';
 
 /**
- * Relacion de aspecto del archivo, recortado a su contenido: 942x342. Se fija
+ * Relacion de aspecto del archivo, recortado a su contenido: 1921x746. Se fija
  * aqui para que el alto se derive del ancho y el logo nunca se deforme, sin
  * que cada pantalla tenga que repetir las dos medidas.
  */
-const ASPECT_RATIO = 942 / 342;
+const ASPECT_RATIO = 1921 / 746;
 
 const DEFAULT_WIDTH = 220;
 
@@ -23,7 +23,7 @@ export function BrandLogo({ width = DEFAULT_WIDTH }: Props) {
       contentFit="contain"
       accessible
       accessibilityRole="image"
-      accessibilityLabel="Farmacia Pragma"
+      accessibilityLabel="Pragma Droguería"
     />
   );
 }
