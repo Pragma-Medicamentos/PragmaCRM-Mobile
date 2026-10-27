@@ -3,9 +3,9 @@ import { haversineMeters, type Coordinates } from './distance';
 /**
  * Ordena paradas por vecino mas cercano, arrancando desde `start`.
  *
- * Es la unica excepcion a "el cliente no reordena" (ver `daily-route.ts`):
- * este orden solo alimenta el link de Google Maps, porque la URL API de
- * directions recorre los waypoints en el orden en que llegan y no los
+ * Es una de las dos excepciones a "el cliente no reordena" (ver
+ * `daily-route.ts`): este orden solo alimenta el link de Google Maps, porque
+ * la URL API de directions recorre los waypoints en el orden en que llegan y no los
  * optimiza. La lista y el mapa siguen mostrando el orden del backend.
  *
  * Es una heuristica voraz, no la ruta optima: alcanza para las cinco a diez

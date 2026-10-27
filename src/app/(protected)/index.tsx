@@ -26,6 +26,7 @@ import { useSetStopLocation } from '@/hooks/use-set-stop-location';
 import { useTheme } from '@/hooks/use-theme';
 import type { DailyRouteStop } from '@/lib/daily-route';
 import { buildGoogleMapsLink } from '@/lib/google-maps-link';
+import { countPendingStops } from '@/lib/stop-progress';
 import { useAuthStore } from '@/stores/auth-store';
 import { useRouteStore } from '@/stores/route-store';
 
@@ -92,7 +93,8 @@ export default function HomeScreen() {
     setStopToValidate(stop);
     confirmSheetRef.current?.present();
   };
-  const stopCount = route.status === 'ready' ? stops.length : null;
+  // Las que faltan, igual que el encabezado de la hoja (PCRM-208).
+  const stopCount = route.status === 'ready' ? countPendingStops(stops) : null;
   // null cuando no queda ninguna parada pendiente con GPS (ruta sin cargar,
   // sin GPS, o todas visitadas) -- sin nada que enlazar, el boton de Google
   // Maps no tiene sentido y se esconde. Depende de `location` porque el orden
