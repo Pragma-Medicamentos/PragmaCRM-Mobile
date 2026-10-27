@@ -14,6 +14,7 @@ import { Button } from './ui/button';
 import { Spacing } from '@/constants/theme';
 import type { DailyRouteStop } from '@/lib/daily-route';
 import type { Coordinates } from '@/lib/distance';
+import { countPendingStops, pendingStopsFirst } from '@/lib/stop-progress';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -86,7 +87,18 @@ export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>, Prop
   // El conteo del encabezado no se puede calcular fuera de `ready`: mostrar
   // "(0)" mientras todavia esta cargando o mientras fallo es la misma mentira
   // de fondo vacio que R11 corrige mas abajo, solo que en miniatura.
-  const headerLabel = state.status === 'ready' ? `${title} (${state.stops.length})` : title;
+  // Cuenta las que faltan, no el total (PCRM-208): baja con cada visita.
+  const stops = state.status === 'ready' ? state.stops : null;
+  const pendingCount = stops ? countPendingStops(stops) : null;
+  const headerLabel = pendingCount !== null ? `${title} (${pendingCount})` : title;
+  // Solo en voz: "(28)" a secas no dice si son las que faltan o el total.
+  const headerA11yLabel =
+    stops && pendingCount !== null
+      ? `${title}, ${pendingCount} ${pendingCount === 1 ? 'pendiente' : 'pendientes'} de ${stops.length}`
+      : title;
+  // Las completadas al final (PCRM-209). Solo la lista: el mapa recibe el
+  // arreglo del backend sin tocar.
+  const orderedStops = useMemo(() => (stops ? pendingStopsFirst(stops) : []), [stops]);
 
   // Mismo grabber armado a mano que tenia `stops.tsx`: `handleIndicatorStyle`
   // de gorhom es un solo elemento y no alcanza para reproducir el borde
@@ -133,7 +145,11 @@ export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>, Prop
       backdropComponent={renderBackdrop}
       backgroundStyle={[styles.background, { backgroundColor: theme.background }]}>
       <View style={[styles.header, { borderBottomColor: theme.backgroundSelected }]}>
-        <ThemedText type="default" numberOfLines={1} style={styles.headerLabel}>
+        <ThemedText
+          type="default"
+          numberOfLines={1}
+          accessibilityLabel={headerA11yLabel}
+          style={styles.headerLabel}>
           {headerLabel}
         </ThemedText>
 
@@ -201,7 +217,7 @@ export const StopsSheet = forwardRef<ComponentRef<typeof BottomSheetModal>, Prop
               {emptyMessage}
             </ThemedText>
           ) : (
-            state.stops.map((stop) => (
+            orderedStops.map((stop) => (
               <StopCard
                 key={stop.id}
                 stop={stop}
