@@ -76,6 +76,13 @@ PIN_TYPES = {
     # amarillo el contraste lo aporta el cuerpo y los guiones solo dibujan el
     # borde.
     'pin-prospecto': {'fill': '#FFC400', 'border': '#A67A00', 'style': 'dashed'},
+    # Parada ya completada, de cualquier tipo y destino (ver `stopPinKind`).
+    # Es uno solo y no una variante gris por tipo: en el mapa lo que el
+    # vendedor necesita saber de una parada hecha es que ya esta hecha, y
+    # cuatro grises casi iguales no se distinguen entre si. Va solido porque
+    # el punteado ya dice "fuera de lo planificado" (prospecto, badge Extra).
+    # El borde es `textSecondary` del tema, el gris "apagado" de la app.
+    'pin-completada': {'fill': '#A3A3A3', 'border': '#5F5F5F', 'style': 'solid'},
 }
 
 # Largo de cada guion y del hueco entre guiones, en puntos @1x, medidos sobre

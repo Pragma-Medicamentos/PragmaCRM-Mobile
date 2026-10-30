@@ -6,7 +6,7 @@ import type { StopType, TargetKind } from './daily-route';
  * Vive suelto y sin imports de React Native para que la precedencia de abajo
  * quede cubierta por un test: es una regla facil de romper sin darse cuenta.
  */
-export type StopPinKind = StopType | 'prospect';
+export type StopPinKind = StopType | 'prospect' | 'completed';
 
 /**
  * Si el destino de la parada es un prospecto y no un cliente.
@@ -22,13 +22,22 @@ export function isProspectStop(stop: { target_kind: TargetKind }): boolean {
 }
 
 /**
- * El destino gana sobre el tipo de parada.
+ * Completada gana sobre todo; despues, el destino gana sobre el tipo de parada.
+ *
+ * Una parada ya completada va siempre con el pin gris, sea del tipo que sea y
+ * aunque sea un prospecto: en el mapa lo que importa de ella es que ya esta
+ * hecha, para que el vendedor vea de un vistazo lo que le falta.
  *
  * Un prospecto trae `stop_type` igual que cualquier otra parada (el admin lo
  * agenda como Visita, Despacho o Cobro), asi que sin esta precedencia se
  * pintaria con el pin verde/azul/ambar y quedaria indistinguible de un
  * cliente -- que es exactamente lo que PCRM-49 viene a resolver.
  */
-export function stopPinKind(stop: { stop_type: StopType; target_kind: TargetKind }): StopPinKind {
+export function stopPinKind(stop: {
+  stop_type: StopType;
+  target_kind: TargetKind;
+  completed_at: string | null;
+}): StopPinKind {
+  if (stop.completed_at !== null) return 'completed';
   return isProspectStop(stop) ? 'prospect' : stop.stop_type;
 }
