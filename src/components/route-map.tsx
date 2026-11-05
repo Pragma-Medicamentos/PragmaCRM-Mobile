@@ -102,15 +102,18 @@ export const RouteMap = forwardRef<RouteMapHandle, Props>(function RouteMap(
   const despachoIcon = useImage(require('@/assets/images/mapPins/pin-despacho.png'));
   const cobroIcon = useImage(require('@/assets/images/mapPins/pin-cobro.png'));
   const prospectoIcon = useImage(require('@/assets/images/mapPins/pin-prospecto.png'));
+  const completadaIcon = useImage(require('@/assets/images/mapPins/pin-completada.png'));
 
   // Indexado por `StopPinKind`, no por `StopType`: un prospecto no es un tipo
-  // de parada mas, es un destino distinto (PCRM-49). Quien decide cual toca es
-  // `stopPinKind`, que ademas tiene test.
+  // de parada mas, es un destino distinto (PCRM-49), y una parada completada
+  // va en gris sea del tipo que sea. Quien decide cual toca es `stopPinKind`,
+  // que ademas tiene test.
   const iconByKind: Record<StopPinKind, typeof visitaIcon> = {
     visit: visitaIcon,
     dispatch: despachoIcon,
     collection: cobroIcon,
     prospect: prospectoIcon,
+    completed: completadaIcon,
   };
 
   // Las paradas sin GPS (`location: null`, un caso real -- ver el
