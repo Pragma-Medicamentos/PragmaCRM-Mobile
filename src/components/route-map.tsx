@@ -18,6 +18,11 @@ type Props = {
   stops: DailyRouteStop[];
   /** Ubicacion del vendedor para el punto azul del mapa; null = sin permiso o sin fix todavia. */
   currentLocation: Coordinates | null;
+  /**
+   * Boton "Ver detalle" junto a "Abrir en Maps" al tocar un pin. Sin esta
+   * prop no aparece: la vista previa de un dia futuro no tiene detalle.
+   */
+  onStopDetailPress?: (stop: DailyRouteStop) => void;
 };
 
 /**
@@ -91,7 +96,7 @@ function toMapCoordinates(coordinates: Coordinates) {
  * SDK alpha, no un descuido de este componente.
  */
 export const RouteMap = forwardRef<RouteMapHandle, Props>(function RouteMap(
-  { stops, currentLocation },
+  { stops, currentLocation, onStopDetailPress },
   ref,
 ) {
   const theme = useTheme();
@@ -183,7 +188,12 @@ export const RouteMap = forwardRef<RouteMapHandle, Props>(function RouteMap(
     setSelectedStopId(id);
   }
 
+  // Zoom actual de la camara, para recentrar en iOS sin cambiarlo (ver
+  // `handleAnnotationClick`).
+  const zoomRef = useRef(DEFAULT_ZOOM);
+
   function handleCameraMove(event: CameraMoveEvent) {
+    zoomRef.current = event.zoom;
     if (!selectedStop) return;
     const { latitude, longitude } = event.coordinates;
     if (latitude === undefined || longitude === undefined) return;
@@ -192,6 +202,21 @@ export const RouteMap = forwardRef<RouteMapHandle, Props>(function RouteMap(
       Math.abs(latitude - selectedStop.location.lat) < tolerance &&
         Math.abs(longitude - selectedStop.location.lng) < tolerance,
     );
+  }
+
+  // Apple Maps, a diferencia de Google Maps, no centra la camara al tocar una
+  // anotacion, y sin centrar la pildora ("Ver detalle", "Abrir en Maps") no
+  // aparece. Se centra a mano con el zoom que ya tenia: `setCameraPosition`
+  // sin zoom cae al default nativo de expo-maps (1, el planeta entero).
+  function handleAnnotationClick(id: string | undefined) {
+    selectStop(id ?? null);
+    const stop = locatedStops.find((candidate) => candidate.id === id);
+    if (!stop) return;
+    hasCenteredRef.current = true;
+    appleMapRef.current?.setCameraPosition({
+      coordinates: toMapCoordinates(stop.location),
+      zoom: zoomRef.current,
+    });
   }
 
   useImperativeHandle(ref, () => ({
@@ -230,8 +255,9 @@ export const RouteMap = forwardRef<RouteMapHandle, Props>(function RouteMap(
 
   // Tocar el mapa fuera de un pin cierra la etiqueta nativa; la pildora se va
   // con ella. Tocar un pin directamente tambien lo selecciona: Google Maps
-  // centra la camara sola en ese caso, asi que la pildora aparece igual que
-  // desde la tarjeta.
+  // centra la camara sola en ese caso y en iOS la centra
+  // `handleAnnotationClick`, asi que la pildora aparece igual que desde la
+  // tarjeta.
   const map =
     Platform.OS === 'ios' ? (
       <AppleMaps.View
@@ -240,7 +266,7 @@ export const RouteMap = forwardRef<RouteMapHandle, Props>(function RouteMap(
         cameraPosition={initialCamera}
         annotations={markers}
         properties={{ isMyLocationEnabled }}
-        onAnnotationClick={(annotation) => selectStop(annotation.id ?? null)}
+        onAnnotationClick={(annotation) => handleAnnotationClick(annotation.id)}
         onMapClick={() => selectStop(null)}
         onCameraMove={handleCameraMove}
       />
@@ -280,6 +306,24 @@ export const RouteMap = forwardRef<RouteMapHandle, Props>(function RouteMap(
             </View>
           )}
 
+          {/* Outline para que la accion de color siga siendo Maps. */}
+          {onStopDetailPress && (
+            <Pressable
+              onPress={() => onStopDetailPress(selectedStop)}
+              accessibilityRole="button"
+              accessibilityLabel={`Ver detalle de ${selectedStop.name}`}
+              style={({ pressed }) => [
+                styles.pill,
+                styles.outlinePill,
+                { backgroundColor: theme.background, borderColor: theme.tint },
+                pressed && styles.pressed,
+              ]}>
+              <ThemedText type="smallBold" style={{ color: theme.tint }}>
+                Ver detalle
+              </ThemedText>
+            </Pressable>
+          )}
+
           <Pressable
             onPress={() => void Linking.openURL(buildGoogleMapsStopLink(selectedStop.location))}
             accessibilityRole="button"
@@ -312,14 +356,23 @@ const styles = StyleSheet.create({
     top: '50%',
     marginTop: Spacing.two + (Platform.OS === 'ios' ? PIN_HEIGHT / 2 : 0),
     flexDirection: 'row',
+    // Icono + prospecto + dos botones no siempre caben en 360 px.
+    flexWrap: 'wrap',
     justifyContent: 'center',
     alignItems: 'center',
     gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
   },
   pill: {
     borderRadius: Spacing.four,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
+  },
+  // Mismo alto que la pildora llena: el borde se come el padding.
+  outlinePill: {
+    borderWidth: 2,
+    paddingHorizontal: Spacing.three - 2,
+    paddingVertical: Spacing.two - 2,
   },
   pressed: {
     opacity: 0.7,
