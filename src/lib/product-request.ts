@@ -37,3 +37,19 @@ export async function registerProductRequest(
     }),
   });
 }
+
+export interface DemandedProduct {
+  id: string;
+  name: string;
+  requests: number;
+}
+
+// Solo quoted_product (fuera de catalogo), nunca el catalogo de Efactsoft.
+export function searchDemandedProducts(
+  search: string,
+  signal?: AbortSignal,
+): Promise<DemandedProduct[]> {
+  const query = new URLSearchParams({ limit: '6' });
+  if (search) query.set('search', search);
+  return apiFetch<DemandedProduct[]>(`/api/v1/product-requests/products?${query}`, { signal });
+}
