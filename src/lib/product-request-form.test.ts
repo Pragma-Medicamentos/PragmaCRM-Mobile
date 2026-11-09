@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  isKnownProduct,
   normalizeProductName,
   parseQuantity,
+  productMatchKey,
   productRequestErrorMessage,
   validateProductRequest,
 } from './product-request-form.ts';
@@ -73,4 +75,15 @@ test('sin conexion se conserva el mensaje en español de apiFetch', () => {
     productRequestErrorMessage(0, 'No se pudo conectar con el servidor.'),
     'No se pudo conectar con el servidor.',
   );
+});
+
+test('la llave de comparacion ignora mayusculas, tildes y espacios', () => {
+  assert.equal(productMatchKey('  Suero  oral PEDIÁTRICO '), 'suero oral pediatrico');
+});
+
+test('reconoce un producto ya solicitado aunque cambie la escritura', () => {
+  const suggestions = [{ name: 'Suero oral pediatrico 500 ml' }, { name: 'Vitamina D3' }];
+  assert.equal(isKnownProduct('suero oral pediátrico  500 ML', suggestions), true);
+  assert.equal(isKnownProduct('Suero oral', suggestions), false);
+  assert.equal(isKnownProduct('   ', suggestions), false);
 });
