@@ -5,8 +5,8 @@ import {
   BottomSheetTextInput,
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet';
-import { forwardRef, useCallback, useMemo, useState, type ComponentRef } from 'react';
-import { Alert, StyleSheet, View, type TextInputProps } from 'react-native';
+import { forwardRef, useCallback, useEffect, useMemo, useState, type ComponentRef } from 'react';
+import { Alert, Pressable, StyleSheet, View, type TextInputProps } from 'react-native';
 
 import { ThemedText } from './themed-text';
 import { Button } from './ui/button';
@@ -15,8 +15,14 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import type { DailyRouteStop } from '@/lib/daily-route';
-import { registerProductRequest } from '@/lib/product-request';
 import {
+  registerProductRequest,
+  searchDemandedProducts,
+  type DemandedProduct,
+} from '@/lib/product-request';
+import {
+  isKnownProduct,
+  normalizeProductName,
   productRequestErrorMessage,
   validateProductRequest,
   type ProductRequestValidation,
@@ -54,6 +60,8 @@ export const ProductRequestSheet = forwardRef<ProductRequestSheetHandle, Props>(
     const [fieldError, setFieldError] = useState<FieldError | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const [nameFocused, setNameFocused] = useState(false);
+    const [suggestions, setSuggestions] = useState<DemandedProduct[]>([]);
 
     const snapPoints = useMemo(() => ['70%'], []);
 
@@ -62,16 +70,36 @@ export const ProductRequestSheet = forwardRef<ProductRequestSheetHandle, Props>(
       setQuantity('');
       setFieldError(null);
       setErrorMessage(null);
+      setNameFocused(false);
+      setSuggestions([]);
     }, []);
 
-    // Cada apertura arranca de cero: la hoja se reusa entre paradas, y heredar
-    // lo escrito para otro cliente seria registrarlo en la visita equivocada.
-    const handleChange = useCallback(
-      (index: number) => {
-        if (index >= 0) resetForm();
-      },
-      [resetForm],
-    );
+    const searchTerm = normalizeProductName(productName);
+
+    useEffect(() => {
+      if (!nameFocused) return;
+      const controller = new AbortController();
+      const timer = setTimeout(
+        () => {
+          searchDemandedProducts(searchTerm, controller.signal)
+            .then(setSuggestions)
+            .catch(() => {
+              if (!controller.signal.aborted) setSuggestions([]);
+            });
+        },
+        searchTerm ? 250 : 0,
+      );
+      return () => {
+        clearTimeout(timer);
+        controller.abort();
+      };
+    }, [searchTerm, nameFocused]);
+
+    const knownProduct = isKnownProduct(searchTerm, suggestions);
+    const showSuggestions = nameFocused && !knownProduct && suggestions.length > 0;
+    const isNewProduct = searchTerm.length >= 2 && !knownProduct;
+
+    // Se limpia en onDismiss: onChange tambien salta cuando el teclado mueve la hoja.
 
     const renderBackdrop = useCallback(
       (props: BottomSheetBackdropProps) => (
@@ -126,7 +154,7 @@ export const ProductRequestSheet = forwardRef<ProductRequestSheetHandle, Props>(
         index={0}
         snapPoints={snapPoints}
         enablePanDownToClose
-        onChange={handleChange}
+        onDismiss={resetForm}
         keyboardBehavior="interactive"
         android_keyboardInputMode="adjustResize"
         backdropComponent={renderBackdrop}
@@ -152,12 +180,47 @@ export const ProductRequestSheet = forwardRef<ProductRequestSheetHandle, Props>(
             error={fieldError?.field === 'productName' ? fieldError.message : null}
             value={productName}
             onChangeText={setProductName}
+            onFocus={() => setNameFocused(true)}
+            onBlur={() => setNameFocused(false)}
             placeholder="ej. Ibuprofeno 400 mg, caja x 100"
             maxLength={200}
             autoCapitalize="sentences"
             returnKeyType="next"
             style={inputStyle}
           />
+
+          {showSuggestions && (
+            <View style={[styles.suggestions, { borderColor: theme.backgroundSelected }]}>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.suggestionsTitle}>
+                {searchTerm ? 'Productos ya solicitados que coinciden' : 'Productos ya solicitados'}
+              </ThemedText>
+              {suggestions.map((product) => (
+                <Pressable
+                  key={product.id}
+                  onPress={() => setProductName(product.name)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Elegir ${product.name}`}
+                  style={({ pressed }) => [
+                    styles.suggestion,
+                    { borderTopColor: theme.backgroundSelected },
+                    pressed && { backgroundColor: theme.backgroundElement },
+                  ]}>
+                  <ThemedText type="default" numberOfLines={2} style={styles.suggestionName}>
+                    {product.name}
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {product.requests === 1 ? '1 vez' : `${product.requests} veces`}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          {isNewProduct && !showSuggestions && (
+            <ThemedText type="small" themeColor="textSecondary">
+              Se registrará como producto nuevo.
+            </ThemedText>
+          )}
 
           <SheetField
             label="Cantidad aproximada (opcional)"
@@ -221,6 +284,27 @@ const styles = StyleSheet.create({
   },
   field: {
     gap: Spacing.one,
+  },
+  suggestions: {
+    borderWidth: 1,
+    borderRadius: Spacing.three,
+    overflow: 'hidden',
+  },
+  suggestionsTitle: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  suggestion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    minHeight: 48,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderTopWidth: 1,
+  },
+  suggestionName: {
+    flex: 1,
   },
   input: {
     borderRadius: Spacing.three,
