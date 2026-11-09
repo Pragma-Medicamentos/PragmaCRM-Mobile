@@ -1,6 +1,7 @@
 import { BottomSheetModal, useBottomSheetModal } from '@gorhom/bottom-sheet';
+import { SymbolView } from 'expo-symbols';
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, Share, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppMenu } from '@/components/app-menu';
@@ -26,6 +27,7 @@ import { useSetStopLocation } from '@/hooks/use-set-stop-location';
 import { useTheme } from '@/hooks/use-theme';
 import type { DailyRouteStop } from '@/lib/daily-route';
 import { buildGoogleMapsLink } from '@/lib/google-maps-link';
+import { buildRouteShareMessage } from '@/lib/route-share';
 import { countPendingStops } from '@/lib/stop-progress';
 import { useAuthStore } from '@/stores/auth-store';
 import { useRouteStore } from '@/stores/route-store';
@@ -93,6 +95,11 @@ export default function HomeScreen() {
     setStopToValidate(stop);
     confirmSheetRef.current?.present();
   };
+  // Desde una tarjeta de la lista o desde "Ver detalle" en un pin del mapa.
+  const openDetail = (stop: DailyRouteStop) => {
+    setDetailStopId(stop.id);
+    detailSheetRef.current?.present();
+  };
   // Las que faltan, igual que el encabezado de la hoja (PCRM-208).
   const stopCount = route.status === 'ready' ? countPendingStops(stops) : null;
   // null cuando no queda ninguna parada pendiente con GPS (ruta sin cargar,
@@ -103,6 +110,20 @@ export default function HomeScreen() {
     () => buildGoogleMapsLink(stops, location),
     [stops, location],
   );
+
+  // Hoja nativa de compartir con el mismo link que abre "Abrir ruta en maps",
+  // para reenviarlo por WhatsApp, correo, etc. Solo existe junto a ese boton,
+  // asi que la ruta ya esta lista.
+  const shareRoute = () => {
+    if (route.status !== 'ready' || !googleMapsLink) return;
+    void Share.share({
+      message: buildRouteShareMessage({
+        date: route.route.date,
+        included: googleMapsLink.included,
+        url: googleMapsLink.url,
+      }),
+    });
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -126,7 +147,12 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.mapContainer}>
-          <RouteMap ref={routeMapRef} stops={stops} currentLocation={location} />
+          <RouteMap
+            ref={routeMapRef}
+            stops={stops}
+            currentLocation={location}
+            onStopDetailPress={openDetail}
+          />
 
           {googleMapsLink && (
             <View style={styles.mapsButtonContainer}>
@@ -141,11 +167,31 @@ export default function HomeScreen() {
                   </ThemedText>
                 </View>
               )}
-              <Button
-                title="Abrir ruta en maps ↗"
-                variant="outline"
-                onPress={() => void Linking.openURL(googleMapsLink.url)}
-              />
+              <View style={styles.mapsActions}>
+                <View style={styles.mapsButton}>
+                  <Button
+                    title="Abrir ruta en maps ↗"
+                    variant="outline"
+                    onPress={() => void Linking.openURL(googleMapsLink.url)}
+                  />
+                </View>
+                {/* Mismo look outline y mismo alto que el boton de al lado. */}
+                <Pressable
+                  onPress={shareRoute}
+                  accessibilityRole="button"
+                  accessibilityLabel="Compartir ruta"
+                  style={({ pressed }) => [
+                    styles.shareButton,
+                    { backgroundColor: theme.background, borderColor: theme.tint },
+                    pressed && styles.pressed,
+                  ]}>
+                  <SymbolView
+                    name={{ ios: 'square.and.arrow.up', android: 'share', web: 'share' }}
+                    tintColor={theme.tint}
+                    size={22}
+                  />
+                </Pressable>
+              </View>
             </View>
           )}
         </View>
@@ -182,10 +228,7 @@ export default function HomeScreen() {
         refreshing={refreshing}
         onReload={() => void loadRoute()}
         currentLocation={location}
-        onStopPress={(stop) => {
-          setDetailStopId(stop.id);
-          detailSheetRef.current?.present();
-        }}
+        onStopPress={openDetail}
         onValidateStop={validateStop}
         onSetLocation={setLocation}
         onRegisterProspect={() => prospectSheetRef.current?.present()}
@@ -315,6 +358,22 @@ const styles = StyleSheet.create({
     right: Spacing.three,
     bottom: Spacing.three,
     gap: Spacing.one,
+  },
+  mapsActions: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  mapsButton: {
+    flex: 1,
+  },
+  // Cuadrado del `minHeight` de `Button`, con su mismo borde y radio.
+  shareButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderRadius: Spacing.three,
   },
   mapsCaption: {
     alignSelf: 'center',

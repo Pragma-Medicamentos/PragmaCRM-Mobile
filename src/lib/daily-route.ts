@@ -109,8 +109,9 @@ export interface DailyRoute {
   routes: RouteRef[];
   /**
    * Plana y ya ordenada. El cliente no reordena, salvo el link de Google Maps
-   * (ver `route-order.ts`) y la lista de la hoja de paradas, que baja las
-   * completadas al final (ver `stop-progress.ts`). Ninguno toca este arreglo.
+   * (ver `route-order.ts`) y la lista de la hoja de paradas, que ordena las
+   * pendientes por cercania al vendedor y baja las completadas al final (ver
+   * `stop-sort.ts`). Ninguno toca este arreglo.
    */
   stops: DailyRouteStop[];
 }

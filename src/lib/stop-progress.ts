@@ -19,9 +19,12 @@ export function countPendingStops(stops: readonly ProgressStop[]): number {
  * paradas, las ya visitadas arriba obligaban a hacer scroll cada vez mas
  * para llegar a la proxima.
  *
- * Orden estable: dentro de cada grupo se respeta el orden del backend, asi
- * que la siguiente pendiente sigue siendo la que tocaba segun la ruta. No
+ * Orden estable: dentro de cada grupo se respeta el orden del backend. No
  * muta `stops` -- el mismo arreglo alimenta el mapa, que no se reordena.
+ *
+ * La hoja de paradas ya no lo usa directo sino a traves de
+ * `sortStopsForSheet` (`stop-sort.ts`), que con GPS ordena las pendientes
+ * por cercania y sin GPS cae justo en este orden.
  */
 export function pendingStopsFirst<T extends ProgressStop>(stops: readonly T[]): T[] {
   const pending = stops.filter((stop) => stop.completed_at === null);
