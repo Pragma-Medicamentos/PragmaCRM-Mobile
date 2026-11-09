@@ -88,3 +88,16 @@ export function productRequestErrorMessage(status: number, serverMessage: string
       return 'No se pudo registrar el producto. Intenta de nuevo.';
   }
 }
+
+// Misma comparacion que normalize_name del servidor.
+export function productMatchKey(raw: string): string {
+  return normalizeProductName(raw)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}
+
+export function isKnownProduct(name: string, suggestions: readonly { name: string }[]): boolean {
+  const key = productMatchKey(name);
+  return key !== '' && suggestions.some((product) => productMatchKey(product.name) === key);
+}
